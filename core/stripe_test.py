@@ -37,12 +37,3 @@ def create_checkout_session():
 
 def parse_webhook_event():
     pass
-
-
-product = create_product("Basic", "Basic subscription")
-print(f"A new product are created! {product.id}")
-
-price = create_price(500, "usd", product.get("id"))
-print(
-    f"The price for the new product is: {price['unit_amount']}. The product is to pay for {price['recurring']['interval']}"
-)

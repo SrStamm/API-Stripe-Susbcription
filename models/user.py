@@ -1,5 +1,5 @@
 from typing import List, Optional, TYPE_CHECKING
-from pydantic import EmailStr
+from pydantic import BaseModel, EmailStr
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
@@ -12,3 +12,7 @@ class Users(SQLModel, table=True):
     stripe_customer_id: Optional[str]
 
     subscriptions: List["Subscriptions"] = Relationship(back_populates="user")
+
+
+class CreateUser(BaseModel):
+    email: EmailStr

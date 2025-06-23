@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from db.session import create_db_and_tables
 from contextlib import asynccontextmanager
+from api import users, subscriptions, auth
 
 
 @asynccontextmanager
@@ -11,10 +12,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.include_router(users.router)
+app.include_router(subscriptions.router)
+app.include_router(auth.router)
+
 
 @app.get("/")
 def root():
     return {
         "detail": "Bienvenido a stripe-fastapi! Una API conectada a stripe que permite manejar suscripciones."
     }
-

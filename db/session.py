@@ -1,6 +1,7 @@
 from sqlalchemy import engine
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, select
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from models import plan, user, subscription
 from dotenv import load_dotenv
 import os
@@ -13,7 +14,7 @@ engine = create_engine(url)
 
 
 def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
+    ## SQLModel.metadata.create_all(engine)
     try:
         with engine.connect() as connection:
             result = connection.execute(text("SELECT 1"))
