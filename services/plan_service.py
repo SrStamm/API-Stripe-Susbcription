@@ -1,6 +1,13 @@
 from fastapi import Depends, HTTPException
 from repositories.plan_repositories import PlanRepository, get_plan_repo
-from core.stripe_test import create_product, create_price, delete_price, get_price
+from core.stripe_test import (
+    create_product,
+    create_price,
+    deactivate_price,
+    get_price,
+    update_product,
+    deactivate_product_and_prices,
+)
 from core.logger import logger
 
 
@@ -27,32 +34,60 @@ class PlanService:
         )
         return {"detail": f"New plan created: {product['name']}"}
 
-    def update_only_price(self, id: str, amount: int, money: str):
+    def update(
+        self,
+        id: str,
+        amount: int | None = None,
+        money: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
+    ):
+        # Obtiene el plan por medio de price_id
         product = self.repo.get_plan_by_id(id)
         if not product:
             raise HTTPException(404, detail=f"Product not found with ID {id}")
 
-        price_found = get_price(product.stripe_price_id)
+        # Obtiene el Price por medio de
+        price_found = get_price(id)
 
         if price_found:
-            price = create_price(
-                amount=amount, money=money, product_id=price_found["product"]
-            )
+            if amount and money:
+                # Crea un nuevo Price
+                price = create_price(
+                    amount=amount, money=money, product_id=price_found["product"]
+                )
 
-            price_updated = self.repo.update_price_to_plan(
-                old_price_id=price_found["id"],
-                new_price_id=price["id"],
-                price_cents=amount,
-                interval=price["recurring"]["interval"],
-            )
+                self.repo.update(
+                    old_price_id=price_found["id"],
+                    new_price_id=price["id"],
+                    price_cents=amount,
+                    interval=price["recurring"]["interval"],
+                )
 
-            delete_price(id=price_found["id"])
+                deactivate_price(id=price_found["id"])
 
-            return {
-                "detail": f"Price to Product {product.name} updated: {price_updated}"
-            }
+            # Se modifica un Product si se qiere modificar
+            if name or description:
+                update_product(
+                    id=price_found["product"], name=name, description=description
+                )
+
+                self.repo.update(
+                    old_price_id=price_found["id"], name=name, description=description
+                )
+
+            return {"detail": "Price to Product {product.name} updated"}
         logger.error(f"Error not found: {price_found}")
         raise HTTPException(404, detail="Product or Price not found")
+
+    def deactivate_plan(self, id: str):
+        price = get_price(id)
+        logger.info(f"Product_id: {price['product']}")
+        deactivate_product_and_prices(price["product"])
+
+        self.repo.delete(id)
+
+        return {"detail": "Plan and prices are been deactivated"}
 
 
 def get_plan_serv(repo: PlanRepository = Depends(get_plan_repo)):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from services.plan_service import PlanService, get_plan_serv
-from schemas.request import PlanCreate, PlanUpdate
+from schemas.request import PlanCreate, PlanUpdate, PlanID
 
 router = APIRouter(prefix="/plans")
 
@@ -28,8 +28,15 @@ def update_price_for_plan(
     data: PlanUpdate,
     serv: PlanService = Depends(get_plan_serv),
 ):
-    return serv.update_only_price(
+    return serv.update(
         id=data.id,
         amount=data.amount,
         money=data.money,
+        name=data.name,
+        description=data.description,
     )
+
+
+@router.delete("/")
+def deactivate_plan(data: PlanID, serv: PlanService = Depends(get_plan_serv)):
+    return serv.deactivate_plan(data.id)

@@ -34,22 +34,38 @@ class PlanRepository:
         self.session.add(plan)
         self.session.commit()
 
-    def update_price_to_plan(
+    def update(
         self,
         old_price_id: str,
-        new_price_id: str,
-        price_cents: int,
-        interval: str,
+        new_price_id: str | None = None,
+        price_cents: int | None = None,
+        interval: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
     ):
         old_product = self.get_plan_by_id(old_price_id)
 
-        old_product.price_cents = price_cents
-        old_product.stripe_price_id = new_price_id
-        old_product.interval = interval
+        if new_price_id and price_cents and interval:
+            old_product.price_cents = price_cents
+            old_product.stripe_price_id = new_price_id
+            old_product.interval = interval
+
+        if name:
+            old_product.name = name
+        if description:
+            old_product.description = description
 
         self.session.commit()
         self.session.refresh(old_product)
         return old_product
+
+    def delete(self, price_id: str):
+        stmt = select(Plans).where(Plans.stripe_price_id == price_id)
+        plans = self.session.exec(stmt).all()
+        for plan in plans:
+            self.session.delete(plan)
+        self.session.commit()
+        return
 
 
 def get_plan_repo(session: Session = Depends(get_session)):

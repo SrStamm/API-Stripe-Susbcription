@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class PlanCreate(BaseModel):
@@ -19,5 +19,27 @@ class PlanRead(BaseModel):
 
 class PlanUpdate(BaseModel):
     id: str
-    amount: int
-    money: str
+    amount: int | None = None
+    money: str | None = None
+    name: str | None = None
+    description: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def validate_id_prefix(cls, v: str) -> str:
+        required_prefix = "price_"
+        if not v.startswith(required_prefix):
+            raise ValueError(f"El ID debe comenzar con el prefijo: {required_prefix}")
+        return v
+
+
+class PlanID(BaseModel):
+    id: str
+
+    @field_validator("id")
+    @classmethod
+    def validate_id_prefix(cls, v: str) -> str:
+        required_prefix = "price_"
+        if not v.startswith(required_prefix):
+            raise ValueError(f"El ID debe comenzar con el prefijo: {required_prefix}")
+        return v

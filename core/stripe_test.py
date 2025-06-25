@@ -14,22 +14,29 @@ def create_product(name: str, description: str):
     return product
 
 
-def update_product(id: str, active: bool, name: str, description: str):
-    if active is not active:
-        stripe.Product.modify(id=id, active=active, name=name, description=description)
-        return
-    else:
+def update_product(id: str, name: str | None = None, description: str | None = None):
+    if name and description:
         stripe.Product.modify(id=id, name=name, description=description)
-        return
+    elif name and not description:
+        stripe.Product.modify(id=id, name=name)
+    elif description and not name:
+        stripe.Product.modify(id=id, description=description)
+    return
 
 
 def get_price(id: str):
     try:
-        price = stripe.Price.retrieve(id)
+        logger.info(f"[get_price] id recibido: {id}")
+        price = stripe.Price.retrieve(id=id)
         return price
     except Exception as e:
         logger.error(f"[get_price] error: {e}")
         raise
+
+
+def get_all_prices(product_id: str):
+    prices = stripe.Price.list(product=product_id)
+    return prices
 
 
 def create_price(amount: int, money: str, product_id: str):
@@ -43,10 +50,21 @@ def create_price(amount: int, money: str, product_id: str):
     return subscription_price
 
 
-def delete_price(id: str):
+def deactivate_price(id: str):
     modified = stripe.Price.modify(id=id, active=False)
     logger.info(f"Price deleted: {modified['active']}")
     return
+
+
+def deactivate_product_and_prices(product_id: str):
+    # Desactiva
+    stripe.Product.modify(product_id, active=False)
+
+    prices = get_all_prices(product_id)
+    for p in prices:
+        stripe.Price.modify(id=p["id"], active=False)
+
+    return {"detail": "The plan has been deactivated"}
 
 
 def createCustomer(email: str, customer_id: str):
