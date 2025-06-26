@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Depends
+from schemas.request import SubscriptionCreate
 from services.subscription_service import SubscriptionService, get_subs_service
+from models.user import ReadUser
+from dependencies.auth import get_current_user
 
 router = APIRouter()
 
@@ -12,3 +15,12 @@ def get_by_id(id: str, serv: SubscriptionService = Depends(get_subs_service)):
 @router.get("/subscriptions/all")
 def get_all(serv: SubscriptionService = Depends(get_subs_service)):
     return serv.get_all_subscription()
+
+
+@router.post("/subscriptions/")
+def create(
+    new_data: SubscriptionCreate,
+    user: ReadUser = Depends(get_current_user),
+    serv: SubscriptionService = Depends(get_subs_service),
+):
+    return serv.create(data=new_data, user_id=user.id)

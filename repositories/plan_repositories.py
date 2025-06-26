@@ -16,6 +16,10 @@ class PlanRepository:
         stmt = select(Plans).where(Plans.stripe_price_id == id)
         return self.session.exec(stmt).first()
 
+    def get_plan_by_plan_id(self, id: int) -> Plans | None:
+        stmt = select(Plans).where(Plans.id == id)
+        return self.session.exec(stmt).first()
+
     def create(
         self,
         price_id: str,

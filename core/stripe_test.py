@@ -2,6 +2,7 @@ import stripe
 import os
 from dotenv import load_dotenv
 from core.logger import logger
+from models import subscription
 
 load_dotenv()
 api_key = os.getenv("API_KEY_TEST")
@@ -72,6 +73,28 @@ def createCustomer(email: str, customer_id: str):
         api_key=api_key, email=email, metadata={"customer_id": customer_id}
     )
     return customer
+
+
+def createSubscription(customer_id: str, price_id: str):
+    new_subscription = stripe.Subscription.create(
+        customer=customer_id,
+        items=[{"price": price_id}],
+        payment_behavior="default_incomplete",
+        payment_settings={"save_default_payment_method": "on_subscription"},
+        expand=["latest_invoice.payment_intent"],
+    )
+    try:
+        logger.info(f"Items: {new_subscription.items}")
+        current_period_end = new_subscription.items.data[0].current_period_end
+    except AttributeError:
+        current_period_end = None
+
+    return {
+        "subscription_id": new_subscription.id,
+        "status": new_subscription.status,
+        "clientSecret": new_subscription.latest_invoice.id,
+        "current_period_end": current_period_end,
+    }
 
 
 def create_checkout_session():

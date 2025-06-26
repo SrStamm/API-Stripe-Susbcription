@@ -16,7 +16,7 @@ class AuthRepository:
         stmt = select(Users).where(Users.id == user_id)
         return self.session.exec(stmt).first()
 
-    def get_user_whit_username(self, email: str):
+    def get_user_whit_email(self, email: str):
         stmt = select(Users).where(Users.email == email)
         return self.session.exec(stmt).first()
 
@@ -39,10 +39,8 @@ class AuthRepository:
         stmt = select(Sessions).where(Sessions.jti == jti)
         return self.session.exec(stmt).first()
 
-    def get_active_sessions(self, user_id):
-        stmt = select(Sessions).where(
-            Sessions.sub == user_id, Sessions.is_active == True
-        )
+    def get_active_sessions(self, sub: str):
+        stmt = select(Sessions).where(Sessions.sub == sub, Sessions.is_active == True)
         return self.session.exec(stmt).all()
 
     def get_expired_sessions(self):

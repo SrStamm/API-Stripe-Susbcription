@@ -1,11 +1,18 @@
 from fastapi import Depends
+from pydantic import EmailStr
 from repositories.auth_repositories import AuthRepository, get_auth_repo
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from core.logger import logger
 from schemas.auth_request import RefreshTokenRequest, Token
+from schemas.exceptions import (
+    InvalidToken,
+    UserNotFoundError,
+    UserNotFoundInLogin,
+    DatabaseError,
+    SessionNotFound,
+)
 import uuid
 import os
 
@@ -16,8 +23,6 @@ ALGORITHM = os.environ.get("ALGORITHM")
 SECRET = os.environ.get("SECRET_KEY")
 
 crypt = CryptContext(schemes=["bcrypt"])
-
-oauth2 = OAuth2PasswordBearer(tokenUrl="token", scheme_name="Bearer")
 
 
 class AuthService:
@@ -51,17 +56,15 @@ class AuthService:
                 raise InvalidToken
 
             # Get necessary data
-            user_id = payload.get("sub")
-            if not user_id:
+            email = payload.get("sub")
+            if not email:
                 logger.error("[AuthService.auth_user] Token Error | Missing user data")
                 raise InvalidToken
 
-            user = self.auth_repo.get_user_by_id(user_id)
+            user = self.auth_repo.get_user_whit_email(email)
             if not user:
-                logger.error(
-                    f"[AuthService.auth_user] Error | User {user_id} not found"
-                )
-                raise UserNotFoundError(user_id)
+                logger.error("[AuthService.auth_user] Error | User not found")
+                raise UserNotFoundError(email)
 
             exp = payload.get("exp")
             if exp is None:
@@ -78,16 +81,12 @@ class AuthService:
             logger.error(f"[AuthService.auth_user] Token error | Error: {e}")
             raise InvalidToken
 
-    async def login(self, form: OAuth2PasswordRequestForm):
+    async def login(self, email: EmailStr):
         try:
-            user = self.auth_repo.get_user_whit_username(form.username)
+            user = self.auth_repo.get_user_whit_email(email)
             if not user:
                 logger.error("[AuthService.login] Login Error | User not found")
                 raise UserNotFoundInLogin
-
-            if not crypt.verify(form.password, user.password):
-                logger.error("[AuthService.login] Login Error | Incorrect password")
-                raise LoginError(user.user_id)
 
             # Create access token
             access_expires = datetime.now(timezone.utc) + timedelta(
@@ -95,7 +94,7 @@ class AuthService:
             )
 
             access_token = {
-                "sub": str(user.user_id),
+                "sub": str(user.email),
                 "exp": int(access_expires.timestamp()),
                 "scope": "api_access",
             }
@@ -104,7 +103,7 @@ class AuthService:
 
             info = self.auth_repo.new_session(
                 jti=str(uuid.uuid4()),
-                sub=str(user.user_id),
+                sub=str(user.email),
                 expires_at=(
                     datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_DURATION)
                 ),
@@ -155,17 +154,15 @@ class AuthService:
                 logger.error("[AuthService.refresh] Token error | Invalid scope")
                 raise InvalidToken
 
-            user_id = payload.get("sub")
-            if not user_id:
-                logger.error("[AuthService.refresh] Token error | Not have user_id")
+            email = payload.get("sub")
+            if not email:
+                logger.error("[AuthService.refresh] Token error | Not have sub")
                 raise InvalidToken
 
-            user = self.auth_repo.get_user_by_id(user_id)
+            user = self.auth_repo.get_user_whit_email(email)
             if not user:
-                logger.error(
-                    f"[AuthService.refresh] Token error | User {user_id} not found"
-                )
-                raise UserNotFoundError(user_id)
+                logger.error("[AuthService.refresh] Token error | User not found")
+                raise UserNotFoundError(email)
 
             exp = payload.get("exp")
             if exp is None:
@@ -185,7 +182,7 @@ class AuthService:
             )
 
             access_token = {
-                "sub": str(user_id),
+                "sub": str(email),
                 "exp": access_expires.timestamp(),
                 "scope": "api_access",
             }
@@ -194,7 +191,7 @@ class AuthService:
             # Create a new session
             new_session = self.auth_repo.new_session(
                 jti=str(uuid.uuid4()),
-                sub=str(user_id),
+                sub=str(email),
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(days=REFRESH_TOKEN_DURATION),
             )
@@ -222,20 +219,23 @@ class AuthService:
             logger.error("[AuthService.refresh] Database Error")
             raise
 
-    def logout(self, user_id: int):
+    def logout(self, sub: str):
         try:
-            active_sessions = self.auth_repo.get_active_sessions(user_id)
+            active_sessions = self.auth_repo.get_active_sessions(sub)
+
+            user = self.auth_repo.get_user_whit_email(sub)
+
             if not active_sessions:
                 logger.error(
-                    f"[AuthService.logout] Not found active sessions for User {user_id}"
+                    f"[AuthService.logout] Not found active sessions for User {user.id}"
                 )
-                raise SessionNotFound(user_id)
+                raise SessionNotFound(user.id)
 
             for individual_session in active_sessions:
                 self.auth_repo.delete_session(individual_session)
 
             logger.info(
-                f"[AuthService.logout] All sessions are closed - User {user_id} closed {len(active_sessions)} sessions"
+                f"[AuthService.logout] All sessions are closed - User {user.id} closed {len(active_sessions)} sessions"
             )
 
             return {"detail": "Closed all sessions"}

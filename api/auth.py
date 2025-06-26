@@ -1,15 +1,14 @@
 from fastapi import APIRouter, Depends, Request
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
 from passlib.context import CryptContext
 from dependencies.auth import get_auth_serv, AuthService, get_current_user
-from models.user import Users
+from models.user import ReadUser, Users
 import os
 from core.logger import logger
 from schemas.exceptions import DatabaseError, InvalidToken
-from schemas.auth_request import Token, RefreshTokenRequest
-from schemas.responses import NotFound, DatabaseErrorResponse
+from schemas.auth_request import Token, RefreshTokenRequest, FormEmail
 
 router = APIRouter(tags=["Login"])
 
@@ -32,11 +31,11 @@ oauth2 = OAuth2PasswordBearer(tokenUrl="token", scheme_name="Bearer")
 )
 # @limiter.limit("10/minute")
 async def login(
-    form: OAuth2PasswordRequestForm = Depends(),
+    email_form: FormEmail,
     auth_serv: AuthService = Depends(get_auth_serv),
 ):
     try:
-        return await auth_serv.login(form)
+        return await auth_serv.login(email_form.email)
     except DatabaseError:
         logger.error("[login] Database Error")
         raise
@@ -72,11 +71,11 @@ async def refresh(
 # @limiter.limit("10/minute")
 async def logout(
     request: Request,
-    user: Users = Depends(get_current_user),
+    user: ReadUser = Depends(get_current_user),
     auth_serv: AuthService = Depends(get_auth_serv),
 ):
     try:
-        return auth_serv.logout(user.id)
+        return auth_serv.logout(user.email)
     except DatabaseError:
         logger.error("[logout] Database Error")
         raise

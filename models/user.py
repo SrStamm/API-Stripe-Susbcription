@@ -16,3 +16,9 @@ class Users(SQLModel, table=True):
 
 class CreateUser(BaseModel):
     email: EmailStr
+
+
+class ReadUser(BaseModel):
+    id: int
+    email: str
+    stripe_customer_id: int

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, field_validator
 
 
@@ -43,3 +44,8 @@ class PlanID(BaseModel):
         if not v.startswith(required_prefix):
             raise ValueError(f"El ID debe comenzar con el prefijo: {required_prefix}")
         return v
+
+
+class SubscriptionCreate(BaseModel):
+    plan_id: int
+    current_period_end: datetime

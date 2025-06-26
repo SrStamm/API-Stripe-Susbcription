@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+
+
+class FormEmail(BaseModel):
+    email: EmailStr
 
 
 class Token(BaseModel):

@@ -9,12 +9,15 @@ class UserService:
     def __init__(self, repo: UserRepository):
         self.repo = repo
 
+    def get_user_me(self, id: int):
+        return self.repo.get_user_by_id(id)
+
     def get_users(self):
         results = self.repo.get_users()
         return results
 
-    def create(self, email: CreateUser):
-        email: EmailStr = email.email
+    def create(self, data: CreateUser):
+        email: EmailStr = data.email
         user = self.repo.get_user_by_email(email)
 
         if not user:

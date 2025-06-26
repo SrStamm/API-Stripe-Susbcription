@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import Depends
 from db.session import Session, get_session, select
 from models.subscription import Subscriptions
@@ -14,6 +15,24 @@ class SubscriptionRepository:
     def get_all_subscription(self):
         stmt = select(Subscriptions)
         return self.session.exec(stmt).all()
+
+    def create(
+        self,
+        user_id: int,
+        plan_id: int,
+        subscription_id: str,
+        status: str,
+        current_period_end: datetime,
+    ):
+        new_susc = Subscriptions(
+            user_id=user_id,
+            plan_id=plan_id,
+            stripe_subscription_id=subscription_id,
+            status=status,
+            current_period_end=current_period_end,
+        )
+        self.session.add(new_susc)
+        self.session.commit()
 
 
 def get_subs_repo(session: Session = Depends(get_session)):
