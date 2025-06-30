@@ -46,6 +46,18 @@ class PlanID(BaseModel):
         return v
 
 
+class SubID(BaseModel):
+    id: str
+
+    @field_validator("id")
+    @classmethod
+    def validate_id_prefix(cls, v: str) -> str:
+        required_prefix = "sub_"
+        if not v.startswith(required_prefix):
+            raise ValueError(f"El ID debe comenzar con el prefijo: {required_prefix}")
+        return v
+
+
 class SubscriptionCreate(BaseModel):
     plan_id: int
     current_period_end: datetime

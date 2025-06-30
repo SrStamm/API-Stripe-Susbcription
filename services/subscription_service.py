@@ -1,11 +1,12 @@
 from datetime import datetime
 from fastapi import Depends, HTTPException
-from core.stripe_test import createSubscription, get_price
+from core.stripe_test import cancelSubscription, createSubscription
 from repositories.plan_repositories import PlanRepository, get_plan_repo
-from repositories.subscription_repositories import SubscriptionRepository, get_subs_repo
 from repositories.user_repositories import UserRepository, get_user_repository
-from schemas.request import SubscriptionCreate
+from repositories.subscription_repositories import SubscriptionRepository, get_subs_repo
+from schemas.request import SubID, SubscriptionCreate
 from schemas.exceptions import UserNotFoundError
+from core.logger import logger
 
 
 class SubscriptionService:
@@ -24,6 +25,9 @@ class SubscriptionService:
 
     def get_all_subscription(self):
         return self.repo.get_all_subscription()
+
+    def get_all_subscription_by_user(self, id: int):
+        return self.repo.get_all_subscription_by_user(id)
 
     def create(self, data: SubscriptionCreate, user_id: int):
         # Obtiene el usuario para stripe_customer_id
@@ -53,9 +57,16 @@ class SubscriptionService:
             current_period_end=current_period_end,
         )
 
+        logger.info(f"current_period_end: {current_period_end}")
         return {
             "detail": "User suscripted with success",
             "client_secret": subs["clientSecret"],
+        }
+
+    def cancel(self, data: SubID):
+        sub_cancelated = cancelSubscription(data.id)
+        return {
+            "detail": f"Subscription {sub_cancelated.id} has been cancelated with success"
         }
 
 

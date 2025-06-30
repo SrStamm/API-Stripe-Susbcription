@@ -1,11 +1,12 @@
+from fastapi import HTTPException
 import stripe
 import os
 from dotenv import load_dotenv
 from core.logger import logger
-from models import subscription
 
 load_dotenv()
 api_key = os.getenv("API_KEY_TEST")
+webhook_key = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 stripe.api_key = api_key
 
@@ -97,9 +98,20 @@ def createSubscription(customer_id: str, price_id: str):
     }
 
 
+def cancelSubscription(subs_id: str):
+    sub_cancelated = stripe.Subscription.cancel(subs_id)
+    return sub_cancelated
+
+
 def create_checkout_session():
     pass
 
 
-def parse_webhook_event():
-    pass
+def parse_webhook_event(payload: bytes, sig_header: str):
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_key)
+        return event
+    except ValueError as e:
+        return HTTPException(400, detail=f"Invalid Payload: {e}")
+    except stripe.SignatureVerificationError as e:
+        raise HTTPException(400, detail=f"Invalid signature: {e}")

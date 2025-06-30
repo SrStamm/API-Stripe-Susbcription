@@ -2,6 +2,7 @@ from datetime import datetime
 from fastapi import Depends
 from db.session import Session, get_session, select
 from models.subscription import Subscriptions
+from models.user import Users
 
 
 class SubscriptionRepository:
@@ -15,6 +16,11 @@ class SubscriptionRepository:
     def get_all_subscription(self):
         stmt = select(Subscriptions)
         return self.session.exec(stmt).all()
+
+    def get_all_subscription_by_user(self, id: int):
+        stmt = select(Users).where(Users.id == id)
+        user = self.session.exec(stmt).first()
+        return user.subscriptions
 
     def create(
         self,

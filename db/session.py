@@ -1,6 +1,6 @@
-from sqlalchemy import engine
 from sqlmodel import SQLModel, create_engine, Session, select
 from sqlalchemy import text
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from models import plan, user, subscription
 from dotenv import load_dotenv
