@@ -17,15 +17,15 @@ async def handle_webhooks(request: Request):
 
     try:
         event = parse_webhook_event(payload, sig_header)
+
+        logger.info(f"Received webhook event: {event['type']}")
+
+        if event["type"] == "customer.created":
+            customer = event["data"]["object"]
+            print(f"Customer created: {customer['id']}")
+
+        return {"status": "success"}
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(500, detail=f"Webhook processing error: {e}")
-
-    logger.info(f"Received webhook event: {event['type']}")
-
-    if event["type"] == "customer.created":
-        customer = event["data"]["object"]
-        print(f"Customer created: {customer['id']}")
-
-    return {"status": "success"}

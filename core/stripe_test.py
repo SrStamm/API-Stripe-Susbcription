@@ -109,7 +109,9 @@ def create_checkout_session():
 
 def parse_webhook_event(payload: bytes, sig_header: str):
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_key)
+        event = stripe.Webhook.construct_event(
+            payload=payload, sig_header=sig_header, secret=webhook_key
+        )
         return event
     except ValueError as e:
         return HTTPException(400, detail=f"Invalid Payload: {e}")
