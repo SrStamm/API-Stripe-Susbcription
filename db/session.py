@@ -14,7 +14,7 @@ engine = create_engine(url)
 
 
 def create_db_and_tables():
-    ## SQLModel.metadata.create_all(engine)
+    SQLModel.metadata.create_all(engine)
     try:
         with engine.connect() as connection:
             result = connection.execute(text("SELECT 1"))

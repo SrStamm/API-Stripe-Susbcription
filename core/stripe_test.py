@@ -71,7 +71,9 @@ def deactivate_product_and_prices(product_id: str):
 
 def createCustomer(email: str, customer_id: str):
     customer = stripe.Customer.create(
-        api_key=api_key, email=email, metadata={"customer_id": customer_id}
+        api_key=api_key,
+        email=email,
+        metadata={"customer_id": customer_id},
     )
     return customer
 

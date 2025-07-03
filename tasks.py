@@ -1,8 +1,21 @@
+from fastapi import HTTPException
 from db.session import get_session
 from repositories.subscription_repositories import SubscriptionRepository
-from fastapi import HTTPException
+from repositories.user_repositories import UserRepository
 from core.logger import logger
 from datetime import datetime
+
+
+def customer_created(payload: dict):
+    session = next(get_session())
+    user_repo = UserRepository(session)
+
+    user = user_repo.get_user_by_customer_id(payload["id"])
+
+    if not user:
+        user = user_repo.create(email=payload["email"])
+
+        user_repo.update(id=user.id, stripe_id=payload["id"])
 
 
 def invoice_paid(payload: dict):
