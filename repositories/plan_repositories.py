@@ -1,7 +1,9 @@
 from typing import Optional
 from fastapi import Depends
+from core.logger import logger
 from models.plan import Plans
-from db.session import get_session, Session, select
+from db.session import SQLAlchemyError, get_session, Session, select
+from schemas.exceptions import DatabaseError, PlanNotFound
 
 
 class PlanRepository:
@@ -28,15 +30,19 @@ class PlanRepository:
         price_cents: int,
         interval: str,
     ):
-        plan = Plans(
-            stripe_price_id=price_id,
-            name=name,
-            description=description,
-            price_cents=price_cents,
-            interval=interval,
-        )
-        self.session.add(plan)
-        self.session.commit()
+        try:
+            plan = Plans(
+                stripe_price_id=price_id,
+                name=name,
+                description=description,
+                price_cents=price_cents,
+                interval=interval,
+            )
+            self.session.add(plan)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            raise DatabaseError(e, "PlanRepository.create")
 
     def update(
         self,
@@ -47,29 +53,42 @@ class PlanRepository:
         name: str | None = None,
         description: str | None = None,
     ):
-        old_product = self.get_plan_by_id(old_price_id)
+        try:
+            old_product = self.get_plan_by_id(old_price_id)
 
-        if new_price_id and price_cents and interval:
-            old_product.price_cents = price_cents
-            old_product.stripe_price_id = new_price_id
-            old_product.interval = interval
+            if not old_product:
+                logger.warning(f"Product {old_price_id} not found")
+                raise PlanNotFound(old_price_id)
 
-        if name:
-            old_product.name = name
-        if description:
-            old_product.description = description
+            if new_price_id and price_cents and interval:
+                old_product.price_cents = price_cents
+                old_product.stripe_price_id = new_price_id
+                old_product.interval = interval
 
-        self.session.commit()
-        self.session.refresh(old_product)
-        return old_product
+            if name:
+                old_product.name = name
+            if description:
+                old_product.description = description
+
+            self.session.commit()
+            self.session.refresh(old_product)
+            return old_product
+
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            raise DatabaseError(e, "PlanRepository.update")
 
     def delete(self, price_id: str):
-        stmt = select(Plans).where(Plans.stripe_price_id == price_id)
-        plans = self.session.exec(stmt).all()
-        for plan in plans:
-            self.session.delete(plan)
-        self.session.commit()
-        return
+        try:
+            stmt = select(Plans).where(Plans.stripe_price_id == price_id)
+            plans = self.session.exec(stmt).all()
+            for plan in plans:
+                self.session.delete(plan)
+            self.session.commit()
+            return
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            raise DatabaseError(e, "PlanRepository.delete")
 
 
 def get_plan_repo(session: Session = Depends(get_session)):

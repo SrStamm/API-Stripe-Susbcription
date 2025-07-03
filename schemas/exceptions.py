@@ -62,3 +62,21 @@ class SessionNotFound(HTTPException):
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found for user"
         )
+
+
+class SubscriptionNotFound(HTTPException):
+    def __init__(self, sub_id: str):
+        self.sub_id = sub_id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Subscription {sub_id} not found",
+        )
+
+
+class PlanNotFound(HTTPException):
+    def __init__(self, id: str):
+        self.id = id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan {id} not found",
+        )

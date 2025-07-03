@@ -2,7 +2,8 @@ from fastapi import Depends
 from db.session import Session, get_session, select, SQLAlchemyError
 from models.subscription import Subscriptions
 from models.user import Users
-from schemas.exceptions import DatabaseError
+from schemas.exceptions import DatabaseError, SubscriptionNotFound
+from core.logger import logger
 from typing import Optional
 from datetime import datetime, timezone
 
@@ -66,6 +67,10 @@ class SubscriptionRepository:
         try:
             sub_found = self.get_subscription_by_id(id)
 
+            if not sub_found:
+                logger.warning(f"Subscription {id} not found")
+                raise SubscriptionNotFound(id)
+
             if status:
                 sub_found.status = status
 
@@ -88,6 +93,10 @@ class SubscriptionRepository:
         try:
             sub_found = self.get_subscription_for_user(sub_id, customer_id)
 
+            if not sub_found:
+                logger.warning(f"Subscription {sub_id} not found")
+                raise SubscriptionNotFound(sub_id)
+
             if status:
                 sub_found.status = status
 
@@ -108,6 +117,10 @@ class SubscriptionRepository:
     ):
         try:
             sub_found = self.get_subscription_for_user(sub_id, customer_id)
+
+            if not sub_found:
+                logger.warning(f"Subscription {sub_id} not found")
+                raise SubscriptionNotFound(sub_id)
 
             sub_found.status = status
 

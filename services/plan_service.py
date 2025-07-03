@@ -9,6 +9,7 @@ from core.stripe_test import (
     deactivate_product_and_prices,
 )
 from core.logger import logger
+from schemas.exceptions import DatabaseError
 
 
 class PlanService:
@@ -19,20 +20,24 @@ class PlanService:
         return self.repo.get_all_plans()
 
     def create(self, name: str, description: str, amount: int, money: str):
-        product = create_product(name=name, description=description)
-        logger.info(f"Product: {product}")
+        try:
+            product = create_product(name=name, description=description)
+            logger.info(f"Product: {product}")
 
-        price = create_price(amount=amount, money=money, product_id=product["id"])
-        logger.info(f"Price: {price}")
+            price = create_price(amount=amount, money=money, product_id=product["id"])
+            logger.info(f"Price: {price}")
 
-        self.repo.create(
-            price_id=price["id"],
-            name=name,
-            description=description,
-            price_cents=price["unit_amount"],
-            interval=price["recurring"]["interval"],
-        )
-        return {"detail": f"New plan created: {product['name']}"}
+            self.repo.create(
+                price_id=price["id"],
+                name=name,
+                description=description,
+                price_cents=price["unit_amount"],
+                interval=price["recurring"]["interval"],
+            )
+            return {"detail": f"New plan created: {product['name']}"}
+
+        except DatabaseError as e:
+            raise e
 
     def update(
         self,
@@ -42,52 +47,60 @@ class PlanService:
         name: str | None = None,
         description: str | None = None,
     ):
-        # Obtiene el plan por medio de price_id
-        product = self.repo.get_plan_by_id(id)
-        if not product:
-            raise HTTPException(404, detail=f"Product not found with ID {id}")
+        try:
+            # Obtiene el plan por medio de price_id
+            product = self.repo.get_plan_by_id(id)
+            if not product:
+                raise HTTPException(404, detail=f"Product not found with ID {id}")
 
-        # Obtiene el Price por medio de
-        price_found = get_price(id)
+            # Obtiene el Price por medio de
+            price_found = get_price(id)
 
-        if price_found:
-            if amount and money:
-                # Crea un nuevo Price
-                price = create_price(
-                    amount=amount, money=money, product_id=price_found["product"]
-                )
+            if price_found:
+                if amount and money:
+                    # Crea un nuevo Price
+                    price = create_price(
+                        amount=amount, money=money, product_id=price_found["product"]
+                    )
 
-                self.repo.update(
-                    old_price_id=price_found["id"],
-                    new_price_id=price["id"],
-                    price_cents=amount,
-                    interval=price["recurring"]["interval"],
-                )
+                    self.repo.update(
+                        old_price_id=price_found["id"],
+                        new_price_id=price["id"],
+                        price_cents=amount,
+                        interval=price["recurring"]["interval"],
+                    )
 
-                deactivate_price(id=price_found["id"])
+                    deactivate_price(id=price_found["id"])
 
-            # Se modifica un Product si se qiere modificar
-            if name or description:
-                update_product(
-                    id=price_found["product"], name=name, description=description
-                )
+                # Se modifica un Product si se qiere modificar
+                if name or description:
+                    update_product(
+                        id=price_found["product"], name=name, description=description
+                    )
 
-                self.repo.update(
-                    old_price_id=price_found["id"], name=name, description=description
-                )
+                    self.repo.update(
+                        old_price_id=price_found["id"],
+                        name=name,
+                        description=description,
+                    )
 
-            return {"detail": "Price to Product {product.name} updated"}
-        logger.error(f"Error not found: {price_found}")
-        raise HTTPException(404, detail="Product or Price not found")
+                return {"detail": "Price to Product {product.name} updated"}
+            logger.error(f"Error not found: {price_found}")
+            raise HTTPException(404, detail="Product or Price not found")
+        except DatabaseError as e:
+            raise e
 
     def deactivate_plan(self, id: str):
-        price = get_price(id)
-        logger.info(f"Product_id: {price['product']}")
-        deactivate_product_and_prices(price["product"])
+        try:
+            price = get_price(id)
+            logger.info(f"Product_id: {price['product']}")
+            deactivate_product_and_prices(price["product"])
 
-        self.repo.delete(id)
+            self.repo.delete(id)
 
-        return {"detail": "Plan and prices are been deactivated"}
+            return {"detail": "Plan and prices are been deactivated"}
+        except DatabaseError as e:
+            raise e
 
 
 def get_plan_serv(repo: PlanRepository = Depends(get_plan_repo)):

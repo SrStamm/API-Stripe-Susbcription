@@ -128,7 +128,7 @@ class AuthService:
             }
         except DatabaseError as e:
             logger.error(f"[AuthService.login] DatabaseError Error: {e}")
-            raise
+            raise e
 
     def refresh(self, refresh: RefreshTokenRequest):
         try:
@@ -215,9 +215,9 @@ class AuthService:
         except JWTError as e:
             logger.error(f"[AuthService.refresh] JWT Error: {e}")
             raise InvalidToken
-        except DatabaseError:
+        except DatabaseError as e:
             logger.error("[AuthService.refresh] Database Error")
-            raise
+            raise e
 
     def logout(self, sub: str):
         try:
@@ -244,7 +244,7 @@ class AuthService:
             raise
         except Exception as e:
             logger.error(f"[AuthService.logout] Unknown Error: {e}")
-            raise
+            raise e
 
 
 def get_auth_serv(auth_repo: AuthRepository = Depends(get_auth_repo)) -> AuthService:

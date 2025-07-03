@@ -2,6 +2,7 @@ from fastapi import Depends
 from pydantic import EmailStr
 from models.user import CreateUser
 from repositories.user_repositories import UserRepository, get_user_repository
+from schemas.exceptions import DatabaseError
 from core.stripe_test import createCustomer
 
 
@@ -17,19 +18,23 @@ class UserService:
         return results
 
     def create(self, data: CreateUser):
-        email: EmailStr = data.email
-        user = self.repo.get_user_by_email(email)
+        try:
+            email: EmailStr = data.email
+            user = self.repo.get_user_by_email(email)
 
-        if not user:
-            customer = self.repo.create(email)
+            if not user:
+                customer = self.repo.create(email)
 
-            stripe_customer = createCustomer(email, customer.id)
+                stripe_customer = createCustomer(email, customer.id)
 
-            self.repo.update(id=customer.id, stripe_id=stripe_customer["id"])
+                self.repo.update(id=customer.id, stripe_id=stripe_customer["id"])
 
-            return {"detail": "User created"}
-        else:
-            return {"detail": "User with these email exist"}
+                return {"detail": "User created"}
+            else:
+                return {"detail": "User with these email exist"}
+
+        except DatabaseError as e:
+            raise e
 
 
 def get_user_service(

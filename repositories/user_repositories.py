@@ -1,6 +1,7 @@
 from fastapi import Depends
-from db.session import Session, get_session, select
+from db.session import Session, get_session, select, SQLAlchemyError
 from models.user import ReadUser, Users
+from schemas.exceptions import DatabaseError
 
 
 class UserRepository:
@@ -8,17 +9,20 @@ class UserRepository:
         self.session = session
 
     def create(self, email: str):
-        user = Users(email=email, stripe_customer_id=None)
-        self.session.add(user)
-        self.session.commit()
-        self.session.refresh(user)
-        return user
+        try:
+            user = Users(email=email, stripe_customer_id=None)
+            self.session.add(user)
+            self.session.commit()
+            self.session.refresh(user)
+            return user
+        except SQLAlchemyError as e:
+            raise DatabaseError(e, "UserRepository.create")
 
     def get_user_by_email(self, email: str):
         stmt = select(Users).where(Users.email == email)
         return self.session.exec(stmt).first()
 
-    def get_user_by_id(self, id: int) -> ReadUser:
+    def get_user_by_id(self, id: int):
         stmt = select(Users).where(Users.id == id)
         return self.session.exec(stmt).first()
 
