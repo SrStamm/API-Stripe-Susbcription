@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from core.logger import logger
 from core.stripe_test import parse_webhook_event
 from tasks import (
+    customer_subscription_deleted,
     customer_subscription_updated,
     invoice_paid,
     customer_subscription_created,
@@ -36,6 +37,9 @@ async def handle_webhooks(request: Request):
 
         elif event["type"] == "customer.subscription.updated":
             customer_subscription_updated(payload)
+
+        elif event["type"] == "customer.subscription.deleted":
+            customer_subscription_deleted(payload)
 
         return {"status": "success"}
 

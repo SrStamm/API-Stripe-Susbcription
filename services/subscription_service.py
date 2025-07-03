@@ -1,13 +1,12 @@
-from datetime import datetime
 from fastapi import Depends, HTTPException
-from core.stripe_test import cancelSubscription, createSubscription
-from models.user import ReadUser
 from repositories.plan_repositories import PlanRepository, get_plan_repo
 from repositories.user_repositories import UserRepository, get_user_repository
 from repositories.subscription_repositories import SubscriptionRepository, get_subs_repo
 from schemas.request import SubID, SubscriptionCreate
-from schemas.exceptions import UserNotFoundError
+from schemas.exceptions import UserNotFoundError, DatabaseError
+from core.stripe_test import cancelSubscription, createSubscription
 from core.logger import logger
+from datetime import datetime
 
 
 class SubscriptionService:
@@ -33,50 +32,54 @@ class SubscriptionService:
         return self.repo.get_all_subscription_by_user(id)
 
     def create(self, data: SubscriptionCreate, user_id: int):
-        # Obtiene el usuario para stripe_customer_id
-        user = self.user_repo.get_user_by_id(user_id)
-        if not user:
-            raise UserNotFoundError(user_id)
+        try:
+            # Obtiene el usuario para stripe_customer_id
+            user = self.user_repo.get_user_by_id(user_id)
+            if not user:
+                raise UserNotFoundError(user_id)
 
-        # Obtiene el plan y el price_id
-        plan = self.plan_repo.get_plan_by_plan_id(data.plan_id)
-        if not plan:
-            raise HTTPException(404, detail="Plan not found")
+            # Obtiene el plan y el price_id
+            plan = self.plan_repo.get_plan_by_plan_id(data.plan_id)
+            if not plan:
+                raise HTTPException(404, detail="Plan not found")
 
-        # Obtiene todas las suscripciones del usuario
-        all_subs = self.sub_repo.get_all_subscription_by_user(user_id)
+            # Obtiene todas las suscripciones del usuario
+            all_subs = self.sub_repo.get_all_subscription_by_user(user_id)
 
-        # Verifica que el usuario no este suscrito
-        for sub in all_subs:
-            if sub.plan_id == data.plan_id:
-                raise HTTPException(
-                    400, detail=f"User {user_id} is suscripted to plan {data.plan_id}"
-                )
+            # Verifica que el usuario no este suscrito
+            for sub in all_subs:
+                if sub.plan_id == data.plan_id:
+                    raise HTTPException(
+                        400,
+                        detail=f"User {user_id} is suscripted to plan {data.plan_id}",
+                    )
 
-        # Crea una nueva suscripción en Stripe
-        subs = createSubscription(
-            customer_id=user.stripe_customer_id,
-            price_id=plan.stripe_price_id,
-            user_id=user_id,
-            plan_id=data.plan_id,
-        )
+            # Crea una nueva suscripción en Stripe
+            subs = createSubscription(
+                customer_id=user.stripe_customer_id,
+                price_id=plan.stripe_price_id,
+                user_id=user_id,
+                plan_id=data.plan_id,
+            )
 
-        current_period_end = subs["current_period_end"]
-        if not current_period_end:
-            current_period_end = datetime.now()
+            current_period_end = subs["current_period_end"]
+            if not current_period_end:
+                current_period_end = datetime.now()
 
-        self.repo.create(
-            user_id=user_id,
-            plan_id=data.plan_id,
-            subscription_id=subs["subscription_id"],
-            status=subs["status"],
-            current_period_end=current_period_end,
-        )
+            self.repo.create(
+                user_id=user_id,
+                plan_id=data.plan_id,
+                subscription_id=subs["subscription_id"],
+                status=subs["status"],
+                current_period_end=current_period_end,
+            )
 
-        return {
-            "detail": "User suscripted with success",
-            "client_secret": subs["clientSecret"],
-        }
+            return {
+                "detail": "User suscripted with success",
+                "client_secret": subs["clientSecret"],
+            }
+        except DatabaseError as e:
+            raise e
 
     def cancel(self, data: SubID, user_id: int):
         user = self.user_repo.get_user_by_id(user_id)

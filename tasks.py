@@ -58,6 +58,7 @@ def invoice_paid(payload: dict):
             customer_id=customer_id,
             status=status,
             current_period_end=current_period_end,
+            is_active=True,
         )
 
         logger.info(f"Subscription {subscription_id} updated correctly")
@@ -81,11 +82,16 @@ def customer_subscription_created(payload: dict):
 
         logger.info(f"plan_id: {plan_id}, user_id: {user_id}")
 
+        current_period_end = datetime.fromtimestamp(
+            payload["items"]["data"][0]["current_period_end"]
+        )
+
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
             status=payload["status"],
-            current_period_end=payload["items"]["data"][0]["current_period_end"],
+            current_period_end=current_period_end,
+            is_active=True,
         )
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
@@ -108,14 +114,49 @@ def customer_subscription_updated(payload: dict):
 
         logger.info(f"plan_id: {plan_id}, user_id: {user_id}")
 
+        current_period_end = datetime.fromtimestamp(
+            payload["items"]["data"][0]["current_period_end"]
+        )
+
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
             status=payload["status"],
-            current_period_end=payload["items"]["data"][0]["current_period_end"],
+            current_period_end=current_period_end,
+            is_active=True,
         )
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
     except Exception as e:
-        logger.error(f"Error in Customer Subscription Created: {e}")
+        logger.error(f"Error in Customer Subscription Updated: {e}")
+        raise HTTPException(500, detail="Internal Server Error")
+
+
+def customer_subscription_deleted(payload: dict):
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+
+    try:
+        logger.info(f"Customer.Subscription.deleted: {payload}")
+
+        # Obtiene info de metadata
+        metadata = payload.get("metadata")
+        user_id = metadata["user_id"]
+
+        logger.info(f"user_id: {user_id}")
+
+        current_period_end = datetime.fromtimestamp(
+            payload["items"]["data"][0]["current_period_end"]
+        )
+
+        subs_repo.cancel(
+            sub_id=payload["id"],
+            customer_id=payload["customer"],
+            status=payload["status"],
+            current_period_end=current_period_end,
+        )
+        logger.info(f"Customer subscription {payload['id']} updated correctly")
+
+    except Exception as e:
+        logger.error(f"Error in Customer Subscription Deleted: {e}")
         raise HTTPException(500, detail="Internal Server Error")

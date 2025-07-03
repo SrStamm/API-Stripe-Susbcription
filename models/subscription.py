@@ -1,4 +1,4 @@
-from datetime import datetime as dt
+from datetime import datetime as dt, timezone
 from typing import Optional
 from sqlmodel import SQLModel, Field, Relationship
 from .user import Users
@@ -13,5 +13,10 @@ class Subscriptions(SQLModel, table=True):
     status: str
     current_period_end: dt
 
+    created_at: dt = Field(default_factory=lambda: dt.now(timezone.utc))
+    updated_at: dt = Field(default_factory=lambda: dt.now(timezone.utc))
+    canceled_at: Optional[dt] = None
+
+    is_active: bool = Field(default=False)
     user: Users = Relationship(back_populates="subscriptions")
     plan: Plans = Relationship()
