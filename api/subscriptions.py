@@ -40,4 +40,4 @@ def cancel(
     user: ReadUser = Depends(get_current_user),
     serv: SubscriptionService = Depends(get_subs_service),
 ):
-    return serv.cancel(id)
+    return serv.cancel(id, user.id)

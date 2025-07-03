@@ -76,10 +76,11 @@ def createCustomer(email: str, customer_id: str):
     return customer
 
 
-def createSubscription(customer_id: str, price_id: str):
+def createSubscription(customer_id: str, price_id: str, user_id: int, plan_id: int):
     new_subscription = stripe.Subscription.create(
         customer=customer_id,
         items=[{"price": price_id}],
+        metadata={"user_id": str(user_id), "plan_id": str(plan_id)},
         payment_behavior="default_incomplete",
         payment_settings={"save_default_payment_method": "on_subscription"},
         expand=["latest_invoice.payment_intent"],

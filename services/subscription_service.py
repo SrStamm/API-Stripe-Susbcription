@@ -1,6 +1,7 @@
 from datetime import datetime
 from fastapi import Depends, HTTPException
 from core.stripe_test import cancelSubscription, createSubscription
+from models.user import ReadUser
 from repositories.plan_repositories import PlanRepository, get_plan_repo
 from repositories.user_repositories import UserRepository, get_user_repository
 from repositories.subscription_repositories import SubscriptionRepository, get_subs_repo
@@ -15,10 +16,12 @@ class SubscriptionService:
         repo: SubscriptionRepository,
         user_repo: UserRepository,
         plan_repo: PlanRepository,
+        sub_repo: SubscriptionRepository,
     ) -> None:
         self.repo = repo
         self.user_repo = user_repo
         self.plan_repo = plan_repo
+        self.sub_repo = sub_repo
 
     def get_by_id(self, id: str):
         return self.repo.get_subscription_by_id(id)
@@ -40,9 +43,22 @@ class SubscriptionService:
         if not plan:
             raise HTTPException(404, detail="Plan not found")
 
+        # Obtiene todas las suscripciones del usuario
+        all_subs = self.sub_repo.get_all_subscription_by_user(user_id)
+
+        # Verifica que el usuario no este suscrito
+        for sub in all_subs:
+            if sub.plan_id == data.plan_id:
+                raise HTTPException(
+                    400, detail=f"User {user_id} is suscripted to plan {data.plan_id}"
+                )
+
         # Crea una nueva suscripción en Stripe
         subs = createSubscription(
-            customer_id=user.stripe_customer_id, price_id=plan.stripe_price_id
+            customer_id=user.stripe_customer_id,
+            price_id=plan.stripe_price_id,
+            user_id=user_id,
+            plan_id=data.plan_id,
         )
 
         current_period_end = subs["current_period_end"]
@@ -57,16 +73,28 @@ class SubscriptionService:
             current_period_end=current_period_end,
         )
 
-        logger.info(f"current_period_end: {current_period_end}")
         return {
             "detail": "User suscripted with success",
             "client_secret": subs["clientSecret"],
         }
 
-    def cancel(self, data: SubID):
-        sub_cancelated = cancelSubscription(data.id)
+    def cancel(self, data: SubID, user_id: int):
+        user = self.user_repo.get_user_by_id(user_id)
+
+        sub_found = self.sub_repo.get_subscription_for_user(
+            data.id, user.stripe_customer_id
+        )
+        logger.info(f"Subs found: {sub_found}")
+
+        if not sub_found:
+            raise HTTPException(
+                404, detail=f"User {user_id} not suscripted to Subscription {data.id}"
+            )
+
+        cancelSubscription(data.id)
+
         return {
-            "detail": f"Subscription {sub_cancelated.id} has been cancelated with success"
+            "detail": f"Subscription {sub_found.id} has been cancelated with success"
         }
 
 
@@ -74,5 +102,6 @@ def get_subs_service(
     repo: SubscriptionRepository = Depends(get_subs_repo),
     user_repo: UserRepository = Depends(get_user_repository),
     plan_repo: PlanRepository = Depends(get_plan_repo),
+    sub_repo: SubscriptionRepository = Depends(get_subs_repo),
 ) -> SubscriptionService:
-    return SubscriptionService(repo, user_repo, plan_repo)
+    return SubscriptionService(repo, user_repo, plan_repo, sub_repo)

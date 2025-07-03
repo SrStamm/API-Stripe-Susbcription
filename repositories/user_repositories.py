@@ -1,6 +1,6 @@
 from fastapi import Depends
 from db.session import Session, get_session, select
-from models.user import Users
+from models.user import ReadUser, Users
 
 
 class UserRepository:
@@ -18,7 +18,7 @@ class UserRepository:
         stmt = select(Users).where(Users.email == email)
         return self.session.exec(stmt).first()
 
-    def get_user_by_id(self, id: int):
+    def get_user_by_id(self, id: int) -> ReadUser:
         stmt = select(Users).where(Users.id == id)
         return self.session.exec(stmt).first()
 

@@ -1,5 +1,8 @@
 #! /bin/bash
 
+echo "Conectando al entorno virtual"
+source env/bin/activate
+
 echo "Activando Base de datos"
 docker start stripe-db
 
