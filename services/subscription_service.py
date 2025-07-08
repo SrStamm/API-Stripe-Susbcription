@@ -16,7 +16,7 @@ class SubscriptionService:
         user_repo: UserRepository,
         plan_repo: PlanRepository,
         sub_repo: SubscriptionRepository,
-    ) -> None:
+    ):
         self.repo = repo
         self.user_repo = user_repo
         self.plan_repo = plan_repo

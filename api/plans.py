@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from services.plan_service import PlanService, get_plan_serv
 from schemas.request import PlanCreate, PlanUpdate, PlanID
 
-router = APIRouter(prefix="/plans")
+router = APIRouter(prefix="/plans", tags=["plans"])
 
 
 @router.get("/")

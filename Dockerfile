@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-FROM python:3.12-alpine as production
+FROM python:3.12-alpine AS production
 
 WORKDIR /backend
 
