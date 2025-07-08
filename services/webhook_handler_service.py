@@ -1,10 +1,10 @@
-from tasks import (
-    invoice_paid,
+from tasks.customer import (
     customer_created,
     customer_subscription_created,
-    customer_subscription_updated,
     customer_subscription_deleted,
+    customer_subscription_updated,
 )
+from tasks.invoice import invoice_paid
 
 
 class WebhooksHandlerService:
@@ -15,12 +15,12 @@ class WebhooksHandlerService:
 
         match type:
             case "invoice.paid":
-                invoice_paid(payload)
+                invoice_paid.delay(event["data"]["object"])
             case "customer.created":
-                customer_created(payload)
+                customer_created.delay(payload)
             case "customer.subscription.created":
-                customer_subscription_created(payload)
+                customer_subscription_created.delay(payload)
             case "customer.subscription.updated":
-                customer_subscription_updated(payload)
+                customer_subscription_updated.delay(payload)
             case "customer.subscription.deleted":
-                customer_subscription_deleted(payload)
+                customer_subscription_deleted.delay(payload)
