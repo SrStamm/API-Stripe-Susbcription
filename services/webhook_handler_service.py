@@ -1,6 +1,9 @@
 from fastapi import HTTPException
 from tasks.customer import (
     customer_created,
+    customer_deleted,
+)
+from tasks.subscriptions import (
     customer_subscription_created,
     customer_subscription_deleted,
     customer_subscription_updated,
@@ -23,6 +26,8 @@ class WebhooksHandlerService:
                 invoice_paid.delay(payload)
             case "customer.created":
                 customer_created.delay(payload)
+            case "customer.deleted":
+                customer_deleted.delay(payload)
             case "customer.subscription.created":
                 customer_subscription_created.delay(payload)
             case "customer.subscription.updated":

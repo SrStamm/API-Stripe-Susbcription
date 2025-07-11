@@ -12,6 +12,7 @@ app = Celery("tasks", broker=redis_url)
 try:
     import tasks.invoice
     import tasks.customer
+    import tasks.subscriptions
 
     print("DEBUG: tasks.invoice and tasks.customer successfully imported directly.")
 except ImportError as e:

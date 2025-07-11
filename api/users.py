@@ -23,3 +23,11 @@ def get_user_me(
 def create_user(email: CreateUser, serv: UserService = Depends(get_user_service)):
     print(f"Received email: {email}")
     return serv.create(email)
+
+
+@router.delete("/")
+def delete_user(
+    user: ReadUser = Depends(get_current_user),
+    serv: UserService = Depends(get_user_service),
+):
+    return serv.delete(user.stripe_customer_id)

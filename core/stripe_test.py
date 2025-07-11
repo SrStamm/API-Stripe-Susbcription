@@ -78,6 +78,11 @@ def createCustomer(email: str, customer_id: str):
     return customer
 
 
+def deleteCustomer(customer_id: str):
+    customer = stripe.Customer.delete(customer_id)
+    return customer
+
+
 def createSubscription(customer_id: str, price_id: str, user_id: int, plan_id: int):
     new_subscription = stripe.Subscription.create(
         customer=customer_id,

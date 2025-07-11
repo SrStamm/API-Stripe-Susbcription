@@ -21,4 +21,4 @@ class CreateUser(BaseModel):
 class ReadUser(BaseModel):
     id: int
     email: str
-    stripe_customer_id: int
+    stripe_customer_id: str
