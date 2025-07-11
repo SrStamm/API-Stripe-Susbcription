@@ -5,7 +5,14 @@ from datetime import datetime
 from tasks.app import app
 
 
-@app.task
+@app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
 def invoice_paid(payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)

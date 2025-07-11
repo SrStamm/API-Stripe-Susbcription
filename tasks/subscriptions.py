@@ -3,9 +3,20 @@ from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
 from tasks.app import app
+from schemas.exceptions import DatabaseError
 
 
-@app.task
+@app.task(
+    bind=True,
+    autoretry_for=(
+        Exception,
+        DatabaseError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
 def customer_subscription_created(payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
@@ -26,12 +37,27 @@ def customer_subscription_created(payload: dict):
         )
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
+    except DatabaseError as e:
+        logger.error(
+            f"Database error in customer_subscription_created for {payload['id']}: {e}"
+        )
+        raise
     except Exception as e:
         logger.error(f"Error in Customer Subscription Created: {e}")
-        raise Exception("Internal Server Error")
+        raise
 
 
-@app.task
+@app.task(
+    bind=True,
+    autoretry_for=(
+        Exception,
+        DatabaseError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
 def customer_subscription_updated(payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
@@ -52,12 +78,27 @@ def customer_subscription_updated(payload: dict):
 
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
+    except DatabaseError as e:
+        logger.error(
+            f"Database error in customer_subscription_updated for {payload['id']}: {e}"
+        )
+        raise
     except Exception as e:
         logger.error(f"Error in Customer Subscription Updated: {e}")
-        raise Exception("Internal Server Error")
+        raise
 
 
-@app.task
+@app.task(
+    bind=True,
+    autoretry_for=(
+        Exception,
+        DatabaseError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
 def customer_subscription_deleted(payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
@@ -75,6 +116,11 @@ def customer_subscription_deleted(payload: dict):
         )
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
+    except DatabaseError as e:
+        logger.error(
+            f"Database error in customer_subscription_deleted for {payload['id']}: {e}"
+        )
+        raise
     except Exception as e:
         logger.error(f"Error in Customer Subscription Deleted: {e}")
-        raise Exception("Internal Server Error")
+        raise
