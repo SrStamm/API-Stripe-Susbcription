@@ -1,4 +1,3 @@
-from fastapi import HTTPException
 from db.session import get_session
 from repositories.subscription_repositories import SubscriptionRepository
 from repositories.user_repositories import UserRepository
@@ -28,13 +27,6 @@ def customer_subscription_created(payload: dict):
     try:
         logger.info(f"Customer.Subscription.created: {payload}")
 
-        # Obtiene info de metadata
-        metadata = payload.get("metadata")
-        plan_id = metadata["plan_id"]
-        user_id = metadata["user_id"]
-
-        logger.info(f"plan_id: {plan_id}, user_id: {user_id}")
-
         current_period_end = datetime.fromtimestamp(
             payload["items"]["data"][0]["current_period_end"]
         )
@@ -50,7 +42,7 @@ def customer_subscription_created(payload: dict):
 
     except Exception as e:
         logger.error(f"Error in Customer Subscription Created: {e}")
-        raise HTTPException(500, detail="Internal Server Error")
+        raise Exception("Internal Server Error")
 
 
 @app.task
@@ -59,15 +51,7 @@ def customer_subscription_updated(payload: dict):
     subs_repo = SubscriptionRepository(session)
 
     try:
-        logger.info(f"Customer.Subscription.updated: {payload}")
-
-        # Obtiene info de metadata
-        metadata = payload.get("metadata")
-        plan_id = metadata["plan_id"]
-        user_id = metadata["user_id"]
-
-        logger.info(f"plan_id: {plan_id}, user_id: {user_id}")
-
+        # Obtiene el periodo de finalización de la suscripcion
         current_period_end = datetime.fromtimestamp(
             payload["items"]["data"][0]["current_period_end"]
         )
@@ -79,11 +63,12 @@ def customer_subscription_updated(payload: dict):
             current_period_end=current_period_end,
             is_active=True,
         )
+
         logger.info(f"Customer subscription {payload['id']} updated correctly")
 
     except Exception as e:
         logger.error(f"Error in Customer Subscription Updated: {e}")
-        raise HTTPException(500, detail="Internal Server Error")
+        raise Exception("Internal Server Error")
 
 
 @app.task
@@ -92,14 +77,6 @@ def customer_subscription_deleted(payload: dict):
     subs_repo = SubscriptionRepository(session)
 
     try:
-        logger.info(f"Customer.Subscription.deleted: {payload}")
-
-        # Obtiene info de metadata
-        metadata = payload.get("metadata")
-        user_id = metadata["user_id"]
-
-        logger.info(f"user_id: {user_id}")
-
         current_period_end = datetime.fromtimestamp(
             payload["items"]["data"][0]["current_period_end"]
         )
@@ -114,4 +91,4 @@ def customer_subscription_deleted(payload: dict):
 
     except Exception as e:
         logger.error(f"Error in Customer Subscription Deleted: {e}")
-        raise HTTPException(500, detail="Internal Server Error")
+        raise Exception("Internal Server Error")

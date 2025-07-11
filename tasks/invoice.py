@@ -1,4 +1,3 @@
-from fastapi import HTTPException
 from db.session import get_session
 from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
@@ -22,7 +21,7 @@ def invoice_paid(payload: dict):
         lines = payload.get("lines", {}).get("data", [])
         if not lines:
             logger.warning("No invoice lines found in webhook payload")
-            raise HTTPException(400, detail="Missing invoice lines")
+            raise Exception("Missing invoice lines")
 
         line = lines[0]
 
@@ -32,13 +31,13 @@ def invoice_paid(payload: dict):
 
         if not sub_item_details or not sub_item_details.get("subscription"):
             logger.warning("No subscription ID found in subscription_item_details")
-            raise HTTPException(400, detail="Missing subscription ID")
+            raise Exception("Missing subscription ID")
 
         subscription_id = sub_item_details.get("subscription")
 
         if not subscription_id:
             logger.warning("Missing subscription ID in invoice line")
-            raise HTTPException(400, detail="Missing subscription ID")
+            raise Exception("Missing subscription ID")
 
         customer_id = payload.get("customer")
         current_period_end = datetime.fromtimestamp(line["period"]["end"])
@@ -53,7 +52,7 @@ def invoice_paid(payload: dict):
         )
 
         if not sub:
-            raise HTTPException(404, detail="Subscription not found")
+            raise Exception("Subscription not found")
 
         subs_repo.update_for_user(
             sub_id=subscription_id,
@@ -67,4 +66,4 @@ def invoice_paid(payload: dict):
 
     except Exception as e:
         logger.error(f"Error in Invoice Paid: {e}")
-        raise HTTPException(500, detail="Internal Server Error")
+        raise Exception("Internal Server Error")

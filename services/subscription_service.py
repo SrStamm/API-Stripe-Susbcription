@@ -75,8 +75,10 @@ class SubscriptionService:
             )
 
             return {
-                "detail": "User suscripted with success",
+                "detail": "Subscription created successfully",
+                "subscription_id": subs["subscription_id"],
                 "client_secret": subs["clientSecret"],
+                "status": "incomplete",
             }
         except DatabaseError as e:
             raise e
