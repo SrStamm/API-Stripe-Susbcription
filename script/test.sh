@@ -1,5 +1,5 @@
 #! /bin/bash
 
-rm -r htmlcov/
+source env/bin/activate
 
 pytest -q --disable-warnings
