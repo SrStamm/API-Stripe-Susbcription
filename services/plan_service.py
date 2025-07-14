@@ -9,7 +9,7 @@ from core.stripe_test import (
     deactivate_product_and_prices,
 )
 from core.logger import logger
-from schemas.exceptions import DatabaseError
+from schemas.exceptions import DatabaseError, PriceNotFound, ProductNotFound
 
 
 class PlanService:
@@ -51,7 +51,7 @@ class PlanService:
             # Obtiene el plan por medio de price_id
             product = self.repo.get_plan_by_id(id)
             if not product:
-                raise HTTPException(404, detail=f"Product not found with ID {id}")
+                raise ProductNotFound(id)
 
             # Obtiene el Price por medio de
             price_found = get_price(id)
@@ -84,9 +84,10 @@ class PlanService:
                         description=description,
                     )
 
-                return {"detail": "Price to Product {product.name} updated"}
+                return {"detail": f"Price to Product {product.name} updated"}
+
             logger.error(f"Error not found: {price_found}")
-            raise HTTPException(404, detail="Product or Price not found")
+            raise PriceNotFound(id)
         except DatabaseError as e:
             raise e
 

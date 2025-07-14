@@ -19,7 +19,7 @@ def test_get_me(client, auth_headers):
     }
 
 
-def test_create_user(client, mocker):
+def test_create_user_success(client, mocker):
     # Mock para simular que el usuario no existe
     mock_get_user_by_email = mocker.patch(
         "repositories.user_repositories.UserRepository.get_user_by_email",
@@ -57,6 +57,20 @@ def test_create_user(client, mocker):
     mock_create_customer.assert_called_once_with("falso@gmail.com", 1)
 
     mock_user_repo_update.assert_called_once_with(id=1, stripe_id="cus_mock_id_123")
+
+
+# def test_create_user_exists(client, mocker):
+#     # Mock para simular que el usuario no existe
+#     mock_get_user_by_email = mocker.patch(
+#         "repositories.user_repositories.UserRepository.get_user_by_email",
+#         return_value=Users(id=1, email="falso@gmail.com", stripe_customer_id=None),
+#     )
+#
+#     response = client.post("/users/", json={"email": "falso@gmail.com"})
+#     assert response.status_code == 200
+#     assert response.json() == {"detail": "User with these email exist"}
+#
+#     mock_get_user_by_email.assert_called_once_with("falso@gmail.com")
 
 
 def test_delete(mocker, client, auth_headers):

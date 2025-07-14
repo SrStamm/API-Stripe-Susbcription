@@ -80,3 +80,21 @@ class PlanNotFound(HTTPException):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Plan {id} not found",
         )
+
+
+class ProductNotFound(HTTPException):
+    def __init__(self, id: str):
+        self.id = id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product {id} not found",
+        )
+
+
+class PriceNotFound(HTTPException):
+    def __init__(self, id: str):
+        self.id = id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Price to product {id} not found",
+        )
