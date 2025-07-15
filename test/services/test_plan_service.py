@@ -135,6 +135,7 @@ def test_update_success(mocker):
     repo_plan_mock.create.side_effect = DatabaseError(
         error=Exception("Simulated DB error in create"), func="PlanRepository.create"
     )
+
     # Mockea el resultado
     mock_product = mocker.Mock()
     mock_product.name = "test"

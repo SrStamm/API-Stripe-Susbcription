@@ -98,3 +98,13 @@ class PriceNotFound(HTTPException):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Price to product {id} not found",
         )
+
+
+class UserSubscriptedError(HTTPException):
+    def __init__(self, user_id: int, plan_id: int):
+        self.user_id = user_id
+        self.plan_id = plan_id
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {user_id} us subscripted to plan {plan_id}",
+        )
