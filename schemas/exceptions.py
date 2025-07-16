@@ -108,3 +108,13 @@ class UserSubscriptedError(HTTPException):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"User {user_id} us subscripted to plan {plan_id}",
         )
+
+
+class UserNotSubscriptedError(HTTPException):
+    def __init__(self, user_id: int, sub_id: str):
+        self.user_id = user_id
+        self.sub_id = sub_id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} is not subscripted to plan {sub_id}",
+        )

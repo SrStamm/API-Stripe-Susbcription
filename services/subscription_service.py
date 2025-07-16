@@ -7,6 +7,7 @@ from schemas.exceptions import (
     PlanNotFound,
     UserNotFoundError,
     DatabaseError,
+    UserNotSubscriptedError,
     UserSubscriptedError,
 )
 from core.stripe_test import cancelSubscription, createSubscription
@@ -89,12 +90,9 @@ class SubscriptionService:
         sub_found = self.repo.get_subscription_for_user(
             data.id, user.stripe_customer_id
         )
-        logger.info(f"Subs found: {sub_found}")
 
         if not sub_found:
-            raise HTTPException(
-                404, detail=f"User {user_id} not suscripted to Subscription {data.id}"
-            )
+            raise UserNotSubscriptedError(user_id=user_id, sub_id=data.id)
 
         cancelSubscription(data.id)
 

@@ -2,7 +2,12 @@ import pytest
 from models.plan import Plans
 from models.subscription import Subscriptions
 from models.user import Users
-from schemas.exceptions import PlanNotFound, UserNotFoundError, UserSubscriptedError
+from schemas.exceptions import (
+    PlanNotFound,
+    UserNotFoundError,
+    UserNotSubscriptedError,
+    UserSubscriptedError,
+)
 from schemas.request import SubID, SubscriptionCreate
 from services.subscription_service import SubscriptionService
 from datetime import datetime as dt
@@ -260,6 +265,26 @@ def test_cancel_success(mocker):
     )
 
     # Verifica que hayan sido llamada las funciones
-    # sub_repo_mock.cancel.assert_called_once_with()
-
     mock_cancel_subscription.assert_called_once_with(mock_sub.stripe_subscription_id)
+
+
+def test_cancel_not_found(mocker):
+    sub_repo_mock = mocker.Mock()
+    user_repo_mock = mocker.Mock()
+    plan_repo_mock = mocker.Mock()
+
+    # Mockea los repos utilizados
+    mock_user = Users(id=1, email="test@gmail.com", stripe_customer_id="cus_mock_123")
+    user_repo_mock.get_user_by_id.return_value = mock_user
+
+    sub_repo_mock.get_subscription_for_user.return_value = None
+
+    serv = SubscriptionService(
+        repo=sub_repo_mock, user_repo=user_repo_mock, plan_repo=plan_repo_mock
+    )
+
+    with pytest.raises(UserNotSubscriptedError):
+        serv.cancel(
+            data=SubID(id="sub_mock_123"),
+            user_id=1,
+        )
