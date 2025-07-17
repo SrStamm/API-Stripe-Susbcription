@@ -4,13 +4,27 @@ from models.user import Users
 from main import app
 
 
-def test_get_users(client):
+def test_get_users(mocker, client):
+    user_mocked = Users(id=1, email="test@gmail.com", stripe_customer_id=None)
+
+    mocker.patch(
+        "repositories.user_repositories.UserRepository.get_users",
+        return_value=[user_mocked],
+    )
+
     response = client.get("/users/")
+
     assert response.status_code == 200
+
+    list = response.json()
+
+    for r in list:
+        assert r == {"id": 1, "email": "test@gmail.com", "stripe_customer_id": None}
 
 
 def test_get_me(client, auth_headers):
     response = client.get("/users/me", headers=auth_headers)
+
     assert response.status_code == 200
     assert response.json() == {
         "id": 1,
@@ -100,3 +114,24 @@ def test_delete(mocker, client, auth_headers):
     assert response.json() == {"customer_id": "cus_mock_id_to_delete", "deleted": True}
 
     mock_delete_customer.assert_called_once_with(customer_id_to_delete)
+
+
+def test_delete_error(mocker, client, auth_headers):
+    def overrides_get_current_user():
+        return Users(id=1, email="test@gmail.com", stripe_customer_id=None)
+
+    app.dependency_overrides[get_current_user] = overrides_get_current_user
+
+    # Mock para stripe.deleteCustomer
+    mock_delete_customer = mocker.patch(
+        "services.user_service.deleteCustomer",
+    )
+
+    response = client.delete("/users/", headers=auth_headers)
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "User 1 not have CustomerId to Stripe"}
+
+    mock_delete_customer.assert_not_called()

@@ -27,13 +27,21 @@ class AuthRepository:
             self.session.commit()
             self.session.refresh(new_session)
             return new_session
+
         except SQLAlchemyError as e:
+            self.session.rollback()
             logger.error(f"[AuthRepository.new_session] Database error: {e}")
             raise DatabaseError(e, "[AuthRepository.new_session]")
 
     def delete_session(self, actual_session: Sessions):
-        self.session.delete(actual_session)
-        self.session.commit()
+        try:
+            self.session.delete(actual_session)
+            self.session.commit()
+
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            logger.error(f"[AuthRepository.delete_session] Database error: {e}")
+            raise DatabaseError(e, "[AuthRepository.delete_session]")
 
     def get_session_with_jti(self, jti: str):
         stmt = select(Sessions).where(Sessions.jti == jti)

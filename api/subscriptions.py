@@ -7,11 +7,6 @@ from dependencies.auth import get_current_user
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
 
-@router.get("/")
-def get_by_id(id: str, serv: SubscriptionService = Depends(get_subs_service)):
-    return serv.get_by_id(id)
-
-
 @router.get("/all")
 def get_all(serv: SubscriptionService = Depends(get_subs_service)):
     return serv.get_all_subscription()
@@ -23,6 +18,11 @@ def get_all_by_user(
     serv: SubscriptionService = Depends(get_subs_service),
 ):
     return serv.get_all_subscription_by_user(user.id)
+
+
+@router.get("/{id}")
+def get_by_id(id: str, serv: SubscriptionService = Depends(get_subs_service)):
+    return serv.get_by_id(id)
 
 
 @router.post("/")

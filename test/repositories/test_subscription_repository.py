@@ -7,6 +7,50 @@ from repositories.subscription_repositories import SubscriptionRepository
 from schemas.exceptions import DatabaseError, SubscriptionNotFound
 
 
+def test_get_all_subscriptions(mocker):
+    mock_session = mocker.Mock()
+
+    mock_subscription = Subscriptions(
+        id=1,
+        user_id=1,
+        plan_id=1,
+        stripe_subscription_id="sub_mocked",
+        status="incomplete",
+        current_period_end=dt.now(),
+    )
+
+    mock_session.exec.return_value.all.return_value = [mock_subscription]
+
+    repo = SubscriptionRepository(mock_session)
+
+    response = repo.get_all_subscription()
+
+    for r in response:
+        assert r == mock_subscription
+
+
+def test_get_all_subscriptions_by_user(mocker):
+    mock_session = mocker.Mock()
+
+    mock_subscription = Subscriptions(
+        id=1,
+        user_id=1,
+        plan_id=1,
+        stripe_subscription_id="sub_mocked",
+        status="incomplete",
+        current_period_end=dt.now(),
+    )
+
+    mock_session.exec.return_value.all.return_value = [mock_subscription]
+
+    repo = SubscriptionRepository(mock_session)
+
+    response = repo.get_all_subscription_by_user(1)
+
+    for r in response:
+        assert r == mock_subscription
+
+
 def test_create_success(mocker):
     mock_session = mocker.Mock()
 

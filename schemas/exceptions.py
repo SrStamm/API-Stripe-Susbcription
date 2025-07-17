@@ -100,6 +100,16 @@ class PriceNotFound(HTTPException):
         )
 
 
+class CustomerIdError(HTTPException):
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {user_id} not have CustomerId to Stripe",
+        )
+
+
 class UserSubscriptedError(HTTPException):
     def __init__(self, user_id: int, plan_id: int):
         self.user_id = user_id

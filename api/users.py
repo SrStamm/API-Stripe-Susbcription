@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from dependencies.auth import get_current_user
+from schemas.exceptions import CustomerIdError
 from services.user_service import get_user_service, UserService
 from models.user import CreateUser, ReadUser
 
@@ -31,7 +32,6 @@ def delete_user(
     serv: UserService = Depends(get_user_service),
 ):
     if not user.stripe_customer_id:
-        raise HTTPException(
-            400, detail="User does not have a Stripe Customer ID to delete"
-        )
+        raise CustomerIdError(user_id=user.id)
+
     return serv.delete(user.stripe_customer_id)

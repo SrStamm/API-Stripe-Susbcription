@@ -1,7 +1,24 @@
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
+from models.plan import Plans
 from repositories.plan_repositories import PlanRepository
 from schemas.exceptions import DatabaseError, PlanNotFound
+
+
+def test_get_plan_by_plan_id_success(mocker):
+    mock_session = mocker.Mock()
+    plan_mocked = Plans(
+        id=1,
+        stripe_price_id="pr_86464",
+        name="test",
+        description=None,
+        price_cents=200,
+        interval="month",
+    )
+    mock_session.exec.return_value.first.return_value = plan_mocked
+
+    repo = PlanRepository(mock_session)
+    repo.get_plan_by_plan_id(1)
 
 
 def test_create(mocker):
