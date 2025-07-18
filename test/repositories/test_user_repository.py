@@ -29,6 +29,21 @@ def test_get_user_by_customer_id(mocker):
     mock_repo.get_user_by_customer_id("cus_546546")
 
 
+def test_get_users_success(mocker):
+    mock_session = mocker.Mock()
+
+    user_mocked = Users(id=1, email="falso@gmail.com", stripe_customer_id=None)
+
+    mock_session.exec.return_value.all.return_value = [user_mocked]
+
+    mock_repo = UserRepository(mock_session)
+
+    response = mock_repo.get_users()
+
+    for r in response:
+        assert r == user_mocked
+
+
 def test_create(mocker):
     mock_session = mocker.Mock()
 

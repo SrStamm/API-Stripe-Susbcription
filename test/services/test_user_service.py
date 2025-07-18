@@ -1,4 +1,5 @@
 import pytest
+from test.conftest import auth_headers, client
 from models.user import CreateUser, Users
 from repositories.user_repositories import UserRepository
 from services.user_service import UserService
@@ -24,7 +25,6 @@ def test_get_user_me(mocker):
 
 
 def test_create_user_exists(client, mocker):
-    # Mock para simular que el usuario no existe
     mock_get_user_by_email = mocker.patch(
         "repositories.user_repositories.UserRepository.get_user_by_email",
         return_value=Users(id=1, email="falso@gmail.com", stripe_customer_id=None),
@@ -67,3 +67,19 @@ def test_create_db_error(mocker):
         "500: database error en UserRepository.create: Simulated DB error on create"
         in str(excinfo.value)
     )
+
+
+def test_delete_success(mocker):
+    repo_mock = mocker.Mock(spec=UserRepository)
+
+    mock_delete_customer = mocker.patch(
+        "services.user_service.deleteCustomer",
+        side_effect=Exception("Simulated Unknown error"),
+    )
+
+    serv = UserService(repo_mock)
+
+    with pytest.raises(Exception):
+        serv.delete(customer_id="cus_mock_id_123")
+
+    mock_delete_customer.assert_called_once_with("cus_mock_id_123")

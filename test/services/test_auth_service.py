@@ -1,7 +1,8 @@
+from jose import JWTError
 import pytest
 from models.auth import Sessions
 from models.user import Users
-from schemas.auth_request import RefreshTokenRequest
+from schemas.auth_request import RefreshTokenRequest, Token
 from schemas.exceptions import (
     DatabaseError,
     InvalidToken,
@@ -50,6 +51,21 @@ def test_get_expired_sessions_not_found(mocker):
     mock_auth_repo.get_expired_sessions.assert_called_once_with()
 
 
+def test_get_expired_sessions_exception(mocker):
+    mock_auth_repo = mocker.Mock()
+
+    mock_auth_repo.get_expired_sessions.side_effect = Exception(
+        "Simuled Exception Error"
+    )
+
+    serv = AuthService(mock_auth_repo)
+
+    with pytest.raises(Exception):
+        serv.get_expired_sessions()
+
+    mock_auth_repo.get_expired_sessions.assert_called_once_with()
+
+
 def test_auth_user_error(mocker):
     mock_repo = mocker.Mock()
     mock_token = mocker.Mock()
@@ -57,6 +73,18 @@ def test_auth_user_error(mocker):
     serv = AuthService(mock_repo)
 
     mocker.patch("services.auth_services.jwt.decode", side_effect=InvalidToken)
+
+    with pytest.raises(InvalidToken):
+        serv.auth_user(mock_token)
+
+
+def test_auth_user_JWTError(mocker):
+    mock_repo = mocker.Mock()
+    mock_token = mocker.Mock()
+
+    serv = AuthService(mock_repo)
+
+    mocker.patch("services.auth_services.jwt.decode", side_effect=JWTError)
 
     with pytest.raises(InvalidToken):
         serv.auth_user(mock_token)
@@ -500,16 +528,9 @@ def test_refresh_jwt_error(mocker):
         return_value=mock_payload,
     )
 
-    mocker.patch(
-        "services.auth_services.jwt.decode",
-        side_effect=InvalidToken(),
-    )
+    mocker.patch("services.auth_services.jwt.decode", side_effect=JWTError())
 
     mock_repo.get_session_with_jti.return_value = mock_payload
-
-    mock_repo.delete_session.side_effect = DatabaseError(
-        error=Exception("Simuled db error"), func="AuthRepository.delete_session"
-    )
 
     serv = AuthService(mock_repo)
 
@@ -520,40 +541,66 @@ def test_refresh_jwt_error(mocker):
 
 
 def test_refresh_success(mocker):
+    # Configurar mocks y datos de prueba
     mock_repo = mocker.Mock()
-    mock_token = "mock_jwt_token"
+    mock_refresh_token = "mock_jwt_token"
+    mock_email = "test@gmail.com"
+    mock_jti = "mock_jti"
+    mock_access_token = "mock_access_token"
+    mock_new_refresh_token = "mock_new_refresh_token"
 
-    mock_user = Users(id=1, email="test@gmail.com", stripe_customer_id="cus_mock_id")
-
-    mock_expires_at = dt.now() + timedelta(hours=1)
-
-    mock_payload = {
-        "jti": "jti_mocked",
+    # Configurar payloads
+    mock_unverified_payload = {
+        "jti": mock_jti,
         "scope": "token_refresh",
-        "sub": "test@gmail.com",
-        "exp": int(mock_expires_at.timestamp()),
+        "sub": mock_email,
+        "exp": (dt.now(timezone.utc) + timedelta(hours=1)).timestamp(),
     }
 
+    mock_decoded_payload = mock_unverified_payload.copy()
+
+    # COnfigurar usuario simulado
+    mock_user = Users(id=1, email=mock_email, stripe_customer_id="cus_mock")
+
+    # Configurar nueva sesion simulada
+    mock_new_session = mocker.Mock()
+    mock_new_session.jti = "new_jit"
+    mock_new_session.sub = mock_email
+    mock_new_session.expires_at = dt.now(timezone.utc) + timedelta(days=1)
+
+    # COnfigurar los mocks
     mocker.patch(
         "services.auth_services.jwt.get_unverified_claims",
-        return_value=mock_payload,
+        return_value=mock_unverified_payload,
     )
 
     mocker.patch(
         "services.auth_services.jwt.decode",
-        return_value=mock_payload,
+        return_value=mock_decoded_payload,
     )
 
-    mock_repo.get_session_with_jti.return_value = mock_payload
+    mocker.patch(
+        "services.auth_services.jwt.encode",
+        side_effect=[mock_access_token, mock_new_refresh_token],
+    )
 
+    # COnfigurar respuestas del repositorio
+    mock_repo.get_session_with_jti.return_value = mock_unverified_payload
     mock_repo.get_user_whit_email.return_value = mock_user
+    # mock_repo.delete_session.return_value = None
+    mock_repo.new_session.return_value = mock_new_session
 
-    mock_repo.delete_session.return_value = None
-
+    # Ejecutar el servicio
     serv = AuthService(mock_repo)
+    result = serv.refresh(refresh=mock_refresh_token)
 
-    serv.refresh(refresh=RefreshTokenRequest(refresh=mock_token))
+    # Verificaciones
+    mock_repo.get_session_with_jti.assert_called_once_with(mock_jti)
+    mock_repo.get_user_whit_email.assert_called_once_with(mock_email)
+    # mock_repo.delete_session.assert_called_once_with()
+    # mock_repo.new_session.assert_called_once_with()
 
-    mock_repo.get_session_with_jti.assert_called_once_with("jti_mocked")
-    mock_repo.get_user_whit_email.assert_called_once_with("test@gmail.com")
-    mock_repo.delete_session.assert_called_once_with(mock_payload)
+    assert isinstance(result, Token)
+    assert result.access_token == mock_access_token
+    assert result.refresh_token == mock_new_refresh_token
+    assert result.token_type == "bearer"

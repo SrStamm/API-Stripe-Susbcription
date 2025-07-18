@@ -3,6 +3,7 @@ from models.plan import Plans
 from models.subscription import Subscriptions
 from models.user import Users
 from schemas.exceptions import (
+    DatabaseError,
     PlanNotFound,
     UserNotFoundError,
     UserNotSubscriptedError,
@@ -227,6 +228,64 @@ def test_create_not_found(mocker):
             data=subscription_data,
             user_id=1,
         )
+
+
+def test_create_db_error(mocker):
+    # Mock repositories
+    sub_repo_mock = mocker.Mock()
+    user_repo_mock = mocker.Mock()
+    plan_repo_mock = mocker.Mock()
+
+    # Mock data
+    subscription_data = SubscriptionCreate(plan_id=1, current_period_end=dt.now())
+
+    mock_user = Users(id=1, email="test@gmail.com", stripe_customer_id="cus_mock_123")
+
+    mock_plan = Plans(
+        id=1,
+        stripe_price_id="pr_mock_123",
+        name="Test",
+        description=None,
+        price_cents=200,
+        interval="month",
+    )
+
+    # Mock repo funciones
+    user_repo_mock.get_user_by_id.return_value = mock_user
+
+    plan_repo_mock.get_plan_by_plan_id.return_value = mock_plan
+
+    sub_repo_mock.get_all_subscription_by_user.return_value = []
+
+    # Mock stripe funciones
+    mock_sub_id = "mock_sub_id"
+    mock_create_subscription = mocker.patch(
+        "services.subscription_service.createSubscription",
+        return_value={
+            "current_period_end": None,
+            "subscription_id": mock_sub_id,
+            "status": "incomplete",
+        },
+    )
+
+    sub_repo_mock.create.side_effect = DatabaseError(
+        error=Exception("simulated DB Error"), func="SubscriptionRepository.create"
+    )
+
+    serv = SubscriptionService(sub_repo_mock, user_repo_mock, plan_repo_mock)
+
+    with pytest.raises(DatabaseError):
+        serv.create(
+            data=subscription_data,
+            user_id=1,
+        )
+
+    mock_create_subscription.assert_called_once_with(
+        customer_id=mock_user.stripe_customer_id,
+        price_id=mock_plan.stripe_price_id,
+        user_id=mock_user.id,
+        plan_id=mock_plan.id,
+    )
 
 
 def test_cancel_success(mocker):
