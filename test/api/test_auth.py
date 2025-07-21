@@ -1,7 +1,7 @@
-from httpx._transports.default import AsyncResponseStream
 from models.auth import Sessions
 from models.user import Users
-from schemas.exceptions import DatabaseError
+from schemas.exceptions import DatabaseError, InvalidToken
+from jose import JWTError
 from test.conftest import client, auth_headers
 from services.auth_services import AuthService, get_auth_serv
 from dependencies.auth import get_current_user
@@ -67,6 +67,21 @@ def test_refresh_db_error(mocker, client):
     assert response.json() == {
         "detail": "database error en AuthService.refresh: Simuled DB Error"
     }
+
+    app.dependency_overrides.clear()
+
+
+def test_refresh_jwt_error(mocker, client):
+    mock_serv = mocker.Mock(spec=AuthService)
+
+    mock_serv.refresh.side_effect = JWTError()
+
+    app.dependency_overrides[get_auth_serv] = lambda: mock_serv
+
+    response = client.post("/refresh", json={"refresh": "refresh_token_mocked"})
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Token Not Authorized"}
 
     app.dependency_overrides.clear()
 
