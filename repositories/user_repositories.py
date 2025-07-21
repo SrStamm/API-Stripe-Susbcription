@@ -44,6 +44,14 @@ class UserRepository:
         except SQLAlchemyError as e:
             raise DatabaseError(e, "UserRepository.update")
 
+    def delete(self, customer_id: str):
+        try:
+            user = self.get_user_by_customer_id(customer_id)
+            self.session.delete(user)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            raise DatabaseError(e, "UserRepository.delete")
+
 
 def get_user_repository(session: Session = Depends(get_session)) -> UserRepository:
     return UserRepository(session)

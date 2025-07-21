@@ -3,7 +3,13 @@ from repositories.plan_repositories import PlanRepository, get_plan_repo
 from repositories.user_repositories import UserRepository, get_user_repository
 from repositories.subscription_repositories import SubscriptionRepository, get_subs_repo
 from schemas.request import SubID, SubscriptionCreate
-from schemas.exceptions import UserNotFoundError, DatabaseError
+from schemas.exceptions import (
+    PlanNotFound,
+    UserNotFoundError,
+    DatabaseError,
+    UserNotSubscriptedError,
+    UserSubscriptedError,
+)
 from core.stripe_test import cancelSubscription, createSubscription
 from core.logger import logger
 from datetime import datetime
@@ -15,12 +21,10 @@ class SubscriptionService:
         repo: SubscriptionRepository,
         user_repo: UserRepository,
         plan_repo: PlanRepository,
-        sub_repo: SubscriptionRepository,
-    ) -> None:
+    ):
         self.repo = repo
         self.user_repo = user_repo
         self.plan_repo = plan_repo
-        self.sub_repo = sub_repo
 
     def get_by_id(self, id: str):
         return self.repo.get_subscription_by_id(id)
@@ -41,18 +45,15 @@ class SubscriptionService:
             # Obtiene el plan y el price_id
             plan = self.plan_repo.get_plan_by_plan_id(data.plan_id)
             if not plan:
-                raise HTTPException(404, detail="Plan not found")
+                raise PlanNotFound("id_not_found")
 
             # Obtiene todas las suscripciones del usuario
-            all_subs = self.sub_repo.get_all_subscription_by_user(user_id)
+            all_subs = self.repo.get_all_subscription_by_user(user_id)
 
             # Verifica que el usuario no este suscrito
             for sub in all_subs:
                 if sub.plan_id == data.plan_id:
-                    raise HTTPException(
-                        400,
-                        detail=f"User {user_id} is suscripted to plan {data.plan_id}",
-                    )
+                    raise UserSubscriptedError(user_id=user_id, plan_id=data.plan_id)
 
             # Crea una nueva suscripción en Stripe
             subs = createSubscription(
@@ -75,8 +76,10 @@ class SubscriptionService:
             )
 
             return {
-                "detail": "User suscripted with success",
+                "detail": "Subscription created successfully",
+                "subscription_id": subs["subscription_id"],
                 "client_secret": subs["clientSecret"],
+                "status": "incomplete",
             }
         except DatabaseError as e:
             raise e
@@ -84,15 +87,12 @@ class SubscriptionService:
     def cancel(self, data: SubID, user_id: int):
         user = self.user_repo.get_user_by_id(user_id)
 
-        sub_found = self.sub_repo.get_subscription_for_user(
+        sub_found = self.repo.get_subscription_for_user(
             data.id, user.stripe_customer_id
         )
-        logger.info(f"Subs found: {sub_found}")
 
         if not sub_found:
-            raise HTTPException(
-                404, detail=f"User {user_id} not suscripted to Subscription {data.id}"
-            )
+            raise UserNotSubscriptedError(user_id=user_id, sub_id=data.id)
 
         cancelSubscription(data.id)
 
@@ -105,6 +105,5 @@ def get_subs_service(
     repo: SubscriptionRepository = Depends(get_subs_repo),
     user_repo: UserRepository = Depends(get_user_repository),
     plan_repo: PlanRepository = Depends(get_plan_repo),
-    sub_repo: SubscriptionRepository = Depends(get_subs_repo),
 ) -> SubscriptionService:
-    return SubscriptionService(repo, user_repo, plan_repo, sub_repo)
+    return SubscriptionService(repo, user_repo, plan_repo)

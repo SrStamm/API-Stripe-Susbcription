@@ -1,13 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from core.logger import logger
 from core.stripe_test import parse_webhook_event
-from tasks import (
-    invoice_paid,
-    customer_created,
-    customer_subscription_deleted,
-    customer_subscription_updated,
-    customer_subscription_created,
-)
+from services.webhook_handler_service import WebhooksHandlerService
 
 router = APIRouter()
 
@@ -20,27 +14,15 @@ async def handle_webhooks(request: Request):
         raise HTTPException(400, detail="Stripe-Signature header missing")
 
     try:
+        # Obtiene el request
         body = await request.body()
+
+        # Parsea el evento
         event = parse_webhook_event(body, sig_header)
 
-        logger.info(f"Received webhook event: {event['type']}")
-
-        payload = event["data"]["object"]
-
-        if event["type"] == "invoice.paid":
-            invoice_paid(payload)
-
-        elif event["type"] == "customer.created":
-            customer_created(payload)
-
-        elif event["type"] == "customer.subscription.created":
-            customer_subscription_created(payload)
-
-        elif event["type"] == "customer.subscription.updated":
-            customer_subscription_updated(payload)
-
-        elif event["type"] == "customer.subscription.deleted":
-            customer_subscription_deleted(payload)
+        # Interactua el service con el evento
+        handler = WebhooksHandlerService()
+        handler.handle(event)
 
         return {"status": "success"}
 

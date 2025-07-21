@@ -9,7 +9,7 @@ from core.stripe_test import (
     deactivate_product_and_prices,
 )
 from core.logger import logger
-from schemas.exceptions import DatabaseError
+from schemas.exceptions import DatabaseError, PriceNotFound, ProductNotFound
 
 
 class PlanService:
@@ -48,45 +48,54 @@ class PlanService:
         description: str | None = None,
     ):
         try:
-            # Obtiene el plan por medio de price_id
             product = self.repo.get_plan_by_id(id)
             if not product:
-                raise HTTPException(404, detail=f"Product not found with ID {id}")
+                raise ProductNotFound(id)
 
-            # Obtiene el Price por medio de
             price_found = get_price(id)
+            if not price_found:
+                logger.error(f"Error not found: {price_found}")
+                raise PriceNotFound(id)
 
-            if price_found:
-                if amount and money:
-                    # Crea un nuevo Price
-                    price = create_price(
-                        amount=amount, money=money, product_id=price_found["product"]
-                    )
+            update_data = {}
+            new_price_id = None
 
-                    self.repo.update(
-                        old_price_id=price_found["id"],
-                        new_price_id=price["id"],
-                        price_cents=amount,
-                        interval=price["recurring"]["interval"],
-                    )
+            # Manejo de actualización de datos
+            if amount and money:
+                new_price = create_price(
+                    amount=amount, money=money, product_id=price_found["product"]
+                )
 
-                    deactivate_price(id=price_found["id"])
+                new_price_id = new_price["id"]
+                deactivate_price(id=price_found["id"])
 
-                # Se modifica un Product si se qiere modificar
-                if name or description:
-                    update_product(
-                        id=price_found["product"], name=name, description=description
-                    )
+                update_data.update(
+                    {
+                        "new_price_id": new_price_id,
+                        "price_cents": amount,
+                        "interval": new_price["recurring"]["interval"],
+                    }
+                )
 
-                    self.repo.update(
-                        old_price_id=price_found["id"],
-                        name=name,
-                        description=description,
-                    )
+            # Manejo de actualización de producto
+            if name or description:
+                update_product(
+                    id=price_found["product"], name=name, description=description
+                )
 
-                return {"detail": "Price to Product {product.name} updated"}
-            logger.error(f"Error not found: {price_found}")
-            raise HTTPException(404, detail="Product or Price not found")
+                if name:
+                    update_data["name"] = name
+                if description:
+                    update_data["description"] = description
+
+            # actualización única en la base de datos
+            if update_data:
+                update_data["old_price_id"] = price_found["id"]
+
+                self.repo.update(**update_data)
+
+            return {"detail": f"Price to Product {product.name} updated"}
+
         except DatabaseError as e:
             raise e
 

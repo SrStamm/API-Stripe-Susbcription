@@ -80,3 +80,51 @@ class PlanNotFound(HTTPException):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Plan {id} not found",
         )
+
+
+class ProductNotFound(HTTPException):
+    def __init__(self, id: str):
+        self.id = id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product {id} not found",
+        )
+
+
+class PriceNotFound(HTTPException):
+    def __init__(self, id: str):
+        self.id = id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Price to product {id} not found",
+        )
+
+
+class CustomerIdError(HTTPException):
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {user_id} not have CustomerId to Stripe",
+        )
+
+
+class UserSubscriptedError(HTTPException):
+    def __init__(self, user_id: int, plan_id: int):
+        self.user_id = user_id
+        self.plan_id = plan_id
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {user_id} us subscripted to plan {plan_id}",
+        )
+
+
+class UserNotSubscriptedError(HTTPException):
+    def __init__(self, user_id: int, sub_id: str):
+        self.user_id = user_id
+        self.sub_id = sub_id
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} is not subscripted to plan {sub_id}",
+        )

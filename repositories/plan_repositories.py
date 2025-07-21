@@ -82,10 +82,13 @@ class PlanRepository:
         try:
             stmt = select(Plans).where(Plans.stripe_price_id == price_id)
             plans = self.session.exec(stmt).all()
-            for plan in plans:
-                self.session.delete(plan)
-            self.session.commit()
-            return
+
+            if plans:
+                for plan in plans:
+                    self.session.delete(plan)
+                self.session.commit()
+                return
+            raise PlanNotFound(price_id)
         except SQLAlchemyError as e:
             self.session.rollback()
             raise DatabaseError(e, "PlanRepository.delete")

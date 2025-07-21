@@ -1,7 +1,7 @@
 services:
   api:
     build: .
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 
     ports:
       - "8000:8000"
     volumes:
@@ -24,5 +24,28 @@ services:
       - "5432:5432"
     env_file: .env
 
+  redis:
+    image: redis/redis-stack:latest
+    restart: always
+    # environment:
+      # - REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data_dev:/var/lib/redis/data
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    env_file: .env
+
+  celery:
+    build:
+      context: .
+    command: celery -A tasks.app worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    env_file: .env
+
 volumes:
   postgres_data_dev:
+  redis_data_dev:

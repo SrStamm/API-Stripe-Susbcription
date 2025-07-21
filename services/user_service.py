@@ -3,7 +3,7 @@ from pydantic import EmailStr
 from models.user import CreateUser
 from repositories.user_repositories import UserRepository, get_user_repository
 from schemas.exceptions import DatabaseError
-from core.stripe_test import createCustomer
+from core.stripe_test import createCustomer, deleteCustomer
 
 
 class UserService:
@@ -34,6 +34,13 @@ class UserService:
                 return {"detail": "User with these email exist"}
 
         except DatabaseError as e:
+            raise e
+
+    def delete(self, customer_id: str):
+        try:
+            info = deleteCustomer(customer_id)
+            return {"customer_id": info["id"], "deleted": info["deleted"]}
+        except Exception as e:
             raise e
 
 
