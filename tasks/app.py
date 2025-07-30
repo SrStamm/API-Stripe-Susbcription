@@ -6,7 +6,7 @@ load_dotenv()
 
 redis_url = os.getenv("REDIS_URL")
 
-app = Celery("tasks", broker=redis_url)
+celery_app = Celery("tasks", broker=redis_url)
 
 # DEBUG: Forzar importación para ver si el módulo es accesible
 try:
@@ -18,4 +18,4 @@ try:
 except ImportError as e:
     print(f"DEBUG: Failed to import task modules: {e}")
 
-app.autodiscover_tasks(["tasks"])
+celery_app.autodiscover_tasks(["tasks"])

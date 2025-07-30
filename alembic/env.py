@@ -5,6 +5,9 @@ from sqlmodel import SQLModel
 import os
 from dotenv import load_dotenv
 from alembic import context
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 load_dotenv()
 

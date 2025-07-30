@@ -1,12 +1,52 @@
+from sqlmodel import true
 from db.session import get_session
+from repositories.plan_repositories import PlanRepository
 from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
-from tasks.app import app
+from repositories.user_repositories import UserRepository
+from tasks.app import celery_app
 from schemas.exceptions import DatabaseError
 
 
-@app.task(
+@celery_app.task
+def customer_sub_basic(payload: dict):
+    session = next(get_session())
+    sub_repo = SubscriptionRepository(session)
+    plan_repo = PlanRepository(session)
+    user_repo = UserRepository(session)
+
+    try:
+        user = user_repo.get_user_by_customer_id(payload["id"])
+        if not user:
+            raise
+
+        plan = plan_repo.get_plan_by_plan_id(id=5)
+        if not plan:
+            raise
+
+        sub_repo.create(
+            user_id=user.id,
+            plan_id=plan.id,
+            subscription_id="sub_free",
+            status="free",
+            current_period_end=datetime.now(),
+        )
+
+        sub_repo.update_for_user(
+            sub_id="sub_free",
+            customer_id=payload["id"],
+            status="active",
+            current_period_end=None,
+            is_active=True,
+        )
+
+        logger.info(f"User {user.id} was suscripted to trial free correctly ")
+    except DatabaseError as e:
+        raise e
+
+
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -17,13 +57,11 @@ from schemas.exceptions import DatabaseError
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_created(payload: dict):
+def customer_subscription_created(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
     try:
-        logger.info(f"Customer.Subscription.created: {payload}")
-
         current_period_end = datetime.fromtimestamp(
             payload["items"]["data"][0]["current_period_end"]
         )
@@ -47,7 +85,7 @@ def customer_subscription_created(payload: dict):
         raise
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -58,7 +96,7 @@ def customer_subscription_created(payload: dict):
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_updated(payload: dict):
+def customer_subscription_updated(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
@@ -88,7 +126,7 @@ def customer_subscription_updated(payload: dict):
         raise
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -99,7 +137,7 @@ def customer_subscription_updated(payload: dict):
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_deleted(payload: dict):
+def customer_subscription_deleted(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 

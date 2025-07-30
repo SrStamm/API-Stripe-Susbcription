@@ -2,10 +2,10 @@ from db.session import get_session
 from repositories.user_repositories import UserRepository
 from core.logger import logger
 from schemas.exceptions import DatabaseError
-from tasks.app import app
+from tasks.app import celery_app
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -16,7 +16,7 @@ from tasks.app import app
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_created(payload: dict):
+def customer_created(self, payload: dict):
     session = next(get_session())
     user_repo = UserRepository(session)
 
@@ -36,7 +36,7 @@ def customer_created(payload: dict):
         raise
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -47,7 +47,7 @@ def customer_created(payload: dict):
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_deleted(payload: dict):
+def customer_deleted(self, payload: dict):
     session = next(get_session())
     user_repo = UserRepository(session)
 

@@ -2,10 +2,10 @@ from db.session import get_session
 from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
-from tasks.app import app
+from tasks.app import celery_app
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(Exception,),
     retry_backoff=True,
@@ -13,7 +13,7 @@ from tasks.app import app
     max_retries=3,
     default_retry_delay=1,
 )
-def invoice_paid(payload: dict):
+def invoice_paid(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
