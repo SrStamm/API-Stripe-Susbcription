@@ -1,6 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel, field_validator
 
+from schemas.enums import SubscriptionTier
+
 
 class PlanCreate(BaseModel):
     name: str
@@ -59,5 +61,5 @@ class SubID(BaseModel):
 
 
 class SubscriptionCreate(BaseModel):
-    plan_id: int
+    tier: SubscriptionTier
     current_period_end: datetime

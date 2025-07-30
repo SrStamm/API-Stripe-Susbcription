@@ -3,6 +3,7 @@ from fastapi import Depends
 from core.logger import logger
 from models.plan import Plans
 from db.session import SQLAlchemyError, get_session, Session, select
+from schemas.enums import SubscriptionTier
 from schemas.exceptions import DatabaseError, PlanNotFound
 
 
@@ -20,6 +21,10 @@ class PlanRepository:
 
     def get_plan_by_plan_id(self, id: int) -> Plans | None:
         stmt = select(Plans).where(Plans.id == id)
+        return self.session.exec(stmt).first()
+
+    def get_plan_by_tier(self, tier: SubscriptionTier) -> Plans | None:
+        stmt = select(Plans).where(Plans.name == tier.lower())
         return self.session.exec(stmt).first()
 
     def create(
