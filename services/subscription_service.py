@@ -11,7 +11,6 @@ from schemas.exceptions import (
     UserSubscriptedError,
 )
 from core.stripe_test import cancelSubscription, createSubscription
-from core.logger import logger
 from datetime import datetime
 
 

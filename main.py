@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from db.session import create_db_and_tables
 from contextlib import asynccontextmanager
-from api import users, subscriptions, plans, auth, webhooks
+from api import users, subscriptions, plans, auth, webhooks, products
 
 
 @asynccontextmanager
@@ -17,6 +17,7 @@ app.include_router(subscriptions.router)
 app.include_router(auth.router)
 app.include_router(plans.router)
 app.include_router(webhooks.router)
+app.include_router(products.router)
 
 
 @app.get("/")
