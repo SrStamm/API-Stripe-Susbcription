@@ -13,6 +13,9 @@ def require_subscription_tier(min_tier: SubscriptionTier):
     ):
         user_subs = sub_serv.get_all_subscription_by_user(id=user.id)
 
+        if not user_subs:
+            raise
+
         user_tier = SubscriptionTier(value=user_subs[0].tier)
 
         if not user_tier.has_access_to(min_tier):

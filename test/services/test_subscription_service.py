@@ -162,6 +162,7 @@ def test_create_success(mocker):
         current_period_end=mock_current_period_end,
         user_id=1,
         status="incomplete",
+        tier=SubscriptionTier.free,
     )
 
     mock_create_subscription.assert_called_once_with(

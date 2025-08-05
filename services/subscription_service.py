@@ -71,6 +71,7 @@ class SubscriptionService:
                 plan_id=plan.id,
                 subscription_id=subs["subscription_id"],
                 status=subs["status"],
+                tier=data.tier,
                 current_period_end=current_period_end,
             )
 

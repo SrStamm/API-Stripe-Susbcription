@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from models.subscription import Subscriptions
 from repositories.subscription_repositories import SubscriptionRepository
+from schemas.enums import SubscriptionTier
 from schemas.exceptions import DatabaseError, SubscriptionNotFound
 
 
@@ -62,6 +63,7 @@ def test_create_success(mocker):
         subscription_id="sub_46846848",
         status="incomplete",
         current_period_end=dt.now(),
+        tier=SubscriptionTier.free,
     )
 
 
@@ -79,6 +81,7 @@ def test_create_db_error(mocker):
             subscription_id="sub_46846848",
             status="incomplete",
             current_period_end=dt.now(),
+            tier=SubscriptionTier.free,
         )
 
 
