@@ -52,7 +52,7 @@ def customer_deleted(self, payload: dict):
     user_repo = UserRepository(session)
 
     try:
-        logger.info("Customer ID es: ", payload["id"])
+        logger.info(f"Customer ID es: {payload['id']}")
         user_repo.delete(payload["id"])
 
     except DatabaseError as e:

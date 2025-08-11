@@ -25,7 +25,9 @@ def invoice_paid(self, payload: dict):
             logger.info("Skipping invoice.paid: not from subscription")
             return
 
+        # Obtiene la informacion del payload
         lines = payload.get("lines", {}).get("data", [])
+
         if not lines:
             logger.warning("No invoice lines found in webhook payload")
             raise Exception("Missing invoice lines")
@@ -34,18 +36,23 @@ def invoice_paid(self, payload: dict):
 
         parent = line.get("parent", {})
 
+        # Valida si se tiene los detalles de las suscripciones
+        if not parent.get("subscription_item_details") or not parent.get(
+            "subscription_item_details"
+        ).get("subscription"):
+            logger.warning("No subscription ID found in subscription_item_details")
+            raise Exception("Missing subscription ID")
+
         sub_item_details = parent.get("subscription_item_details")
 
-        if not sub_item_details or not sub_item_details.get("subscription"):
-            logger.warning("No subscription ID found in subscription_item_details")
+        # Valida si se tiene el id de suscripción
+        if not sub_item_details.get("subscription"):
+            logger.warning("Missing subscription ID in invoice line")
             raise Exception("Missing subscription ID")
 
         subscription_id = sub_item_details.get("subscription")
 
-        if not subscription_id:
-            logger.warning("Missing subscription ID in invoice line")
-            raise Exception("Missing subscription ID")
-
+        # Obtiene el ID de customer, el period end y status de suscripción
         customer_id = payload.get("customer")
         current_period_end = datetime.fromtimestamp(line["period"]["end"])
         status = payload.get("status")
@@ -73,4 +80,4 @@ def invoice_paid(self, payload: dict):
 
     except Exception as e:
         logger.error(f"Error in Invoice Paid: {e}")
-        raise Exception("Internal Server Error")
+        raise e
