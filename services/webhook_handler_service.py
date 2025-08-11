@@ -15,24 +15,25 @@ from core.logger import logger
 
 class WebhooksHandlerService:
     def handle(self, event: dict):
-        type = event["type"]
-        payload = event["data"]["object"]
+        try:
+            type = event["type"]
+            payload = event["data"]["object"]
 
-        if not type or not payload:
-            logger.warning("Invalid event structure")
+            match type:
+                case "invoice.paid":
+                    invoice_paid.delay(payload)
+                case "customer.created":
+                    customer_created.delay(payload)
+                    customer_sub_basic.delay(payload)
+                case "customer.deleted":
+                    customer_deleted.delay(payload)
+                case "customer.subscription.created":
+                    customer_subscription_created.delay(payload)
+                case "customer.subscription.updated":
+                    customer_subscription_updated.delay(payload)
+                case "customer.subscription.deleted":
+                    customer_subscription_deleted.delay(payload)
+
+        except KeyError as e:
+            logger.warning(f"Invalid event structure: {e}")
             raise HTTPException(400, detail="Invalid event payload")
-
-        match type:
-            case "invoice.paid":
-                invoice_paid.delay(payload)
-            case "customer.created":
-                customer_created.delay(payload)
-                customer_sub_basic.delay(payload)
-            case "customer.deleted":
-                customer_deleted.delay(payload)
-            case "customer.subscription.created":
-                customer_subscription_created.delay(payload)
-            case "customer.subscription.updated":
-                customer_subscription_updated.delay(payload)
-            case "customer.subscription.deleted":
-                customer_subscription_deleted.delay(payload)
