@@ -40,6 +40,17 @@ class SubscriptionRepository:
         )
         return self.session.exec(stmt).first()
 
+    def get_sub_with_customer_id(self, customer_id: str):
+        stmt = (
+            select(Subscriptions)
+            .join(Users)
+            .where(
+                Subscriptions.user_id == Users.id,
+                Users.stripe_customer_id == customer_id,
+            )
+        )
+        return self.session.exec(stmt).first()
+
     def create(
         self,
         user_id: int,

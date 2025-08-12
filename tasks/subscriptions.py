@@ -5,6 +5,7 @@ from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
 from repositories.user_repositories import UserRepository
+from schemas.enums import SubscriptionTier
 from tasks.app import celery_app
 from schemas.exceptions import DatabaseError
 
@@ -31,6 +32,7 @@ def customer_sub_basic(payload: dict):
             subscription_id="sub_free",
             status="free",
             current_period_end=datetime.now(),
+            tier=SubscriptionTier.free,
         )
 
         sub_repo.update_for_user(
@@ -106,12 +108,19 @@ def customer_subscription_updated(self, payload: dict):
             payload["items"]["data"][0]["current_period_end"]
         )
 
+        case_falses = ["paused", "incomplete"]
+
+        if payload["status"] in case_falses:
+            active = False
+        else:
+            active = True
+
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
             status=payload["status"],
             current_period_end=current_period_end,
-            is_active=True,
+            is_active=active,
         )
 
         logger.info(f"Customer subscription {payload['id']} updated correctly")
@@ -161,4 +170,40 @@ def customer_subscription_deleted(self, payload: dict):
         raise
     except Exception as e:
         logger.error(f"Error in Customer Subscription Deleted: {e}")
+        raise
+
+
+@celery_app.task(
+    bind=True,
+    autoretry_for=(
+        Exception,
+        DatabaseError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
+def customer_subscription_paused(self, payload: dict):
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+
+    try:
+        subs_repo.update_for_user(
+            sub_id=payload["id"],
+            customer_id=payload["customer"],
+            status=payload["status"],
+            current_period_end=None,
+            is_active=False,
+        )
+
+        logger.info(f"Customer subscription {payload['id']} updated correctly")
+
+    except DatabaseError as e:
+        logger.error(
+            f"Database error in customer_subscription_updated for {payload['id']}: {e}"
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Error in Customer Subscription Updated: {e}")
         raise

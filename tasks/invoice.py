@@ -81,3 +81,73 @@ def invoice_paid(self, payload: dict):
     except Exception as e:
         logger.error(f"Error in Invoice Paid: {e}")
         raise e
+
+
+@celery_app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
+def invoice_payment_failed(self, payload: dict):
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+
+    try:
+        logger.info(f"Webhook payload: {payload}")
+
+        # Ignorar facturas no relacionadas a suscripciones
+        # if payload.get("billing_reason") != "subscription_create":
+        #     logger.info("Skipping invoice.paid: not from subscription")
+        #     return
+
+        # Obtiene la informacion del payload
+        lines = payload.get("lines", {}).get("data", [])
+
+        if not lines:
+            logger.warning("No invoice lines found in webhook payload")
+            raise Exception("Missing invoice lines")
+
+        line = lines[0]
+        parent = line.get("parent", {})
+
+        # Valida si se tiene los detalles de las suscripciones
+        if not parent.get("subscription_item_details") or not parent.get(
+            "subscription_item_details"
+        ).get("subscription"):
+            logger.warning("No subscription ID found in subscription_item_details")
+            raise Exception("Missing subscription ID")
+
+        sub_item_details = parent.get("subscription_item_details")
+
+        subscription_id = sub_item_details.get("subscription")
+
+        # Obtiene el ID de customer, el period end y status de suscripción
+        customer_id = payload.get("customer")
+        current_period_end = datetime.fromtimestamp(line["period"]["end"])
+        status = payload.get("status")
+
+        logger.info(f"Webhook invoice.payment_failed - customer_id: {customer_id}")
+
+        sub = subs_repo.get_subscription_for_user(
+            sub_id=subscription_id, customer_id=customer_id
+        )
+
+        if not sub:
+            raise Exception("Subscription not found")
+
+        subs_repo.update_for_user(
+            sub_id=subscription_id,
+            customer_id=customer_id,
+            status=status,
+            current_period_end=current_period_end,
+            is_active=False,
+        )
+
+        logger.info(f"Subscription {subscription_id} updated correctly")
+
+    except Exception as e:
+        logger.error(f"Error in Invoice Paiment Failed: {e}")
+        raise e
