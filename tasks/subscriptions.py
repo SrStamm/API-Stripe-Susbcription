@@ -7,7 +7,7 @@ from datetime import datetime
 from repositories.user_repositories import UserRepository
 from schemas.enums import SubscriptionTier
 from tasks.app import celery_app
-from schemas.exceptions import DatabaseError
+from schemas.exceptions import DatabaseError, PlanNotFound
 
 
 @celery_app.task
@@ -20,11 +20,11 @@ def customer_sub_basic(payload: dict):
     try:
         user = user_repo.get_user_by_customer_id(payload["id"])
         if not user:
-            raise
+            raise Exception(f"User with stripe_id {payload['id']}")
 
         plan = plan_repo.get_plan_by_plan_id(id=5)
         if not plan:
-            raise
+            raise Exception('Plan with ID 5 ("FREE") not found: ')
 
         sub_repo.create(
             user_id=user.id,
@@ -81,10 +81,10 @@ def customer_subscription_created(self, payload: dict):
         logger.error(
             f"Database error in customer_subscription_created for {payload['id']}: {e}"
         )
-        raise
+        raise e
     except Exception as e:
         logger.error(f"Error in Customer Subscription Created: {e}")
-        raise
+        raise e
 
 
 @celery_app.task(
