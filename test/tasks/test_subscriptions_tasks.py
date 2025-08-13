@@ -5,6 +5,7 @@ from tasks.subscriptions import (
     customer_sub_basic,
     customer_subscription_created,
     customer_subscription_deleted,
+    customer_subscription_paused,
     customer_subscription_updated,
 )
 from datetime import datetime
@@ -514,4 +515,116 @@ def test_customer_subscription_deleted_unexpected_error(mocker):
         customer_id=payload_mocked["customer"],
         status=payload_mocked["status"],
         current_period_end=current_period_end_mocked,
+    )
+
+
+def test_customer_subscription_paused_success(mocker):
+    # Mock de session y Repository
+    mock_session = mocker.Mock()
+    mock_sub_repo = mocker.Mock()
+
+    # Mockea get_session para devolver la session mockeada
+    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+
+    # Mockea el SubscriptionRepository
+    mocker.patch(
+        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
+    )
+
+    # Mock del payload
+    payload_mocked = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "incomplete",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
+    # Llamada a la función
+    customer_subscription_paused(payload_mocked)
+
+    # Verificaciones
+    mock_sub_repo.update_for_user.assert_called_once_with(
+        sub_id=payload_mocked["id"],
+        customer_id=payload_mocked["customer"],
+        status=payload_mocked["status"],
+        current_period_end=None,
+        is_active=False,
+    )
+
+
+def test_customer_subscription_paused_db_error(mocker):
+    # Mock de session y Repository
+    mock_session = mocker.Mock()
+    mock_sub_repo = mocker.Mock()
+
+    # Mockear para que de error
+    mock_sub_repo.update_for_user.side_effect = DatabaseError(
+        error="DB error false", func="update_for_user"
+    )
+
+    # Mockea get_session para devolver la session mockeada
+    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+
+    # Mockea el SubscriptionRepository
+    mocker.patch(
+        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
+    )
+
+    # Mock del payload
+    payload_mocked = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "incomplete",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
+    # Llamada a la función
+    with pytest.raises(DatabaseError):
+        customer_subscription_paused(payload_mocked)
+
+    # Verificaciones
+    mock_sub_repo.update_for_user.assert_called_once_with(
+        sub_id=payload_mocked["id"],
+        customer_id=payload_mocked["customer"],
+        status=payload_mocked["status"],
+        current_period_end=None,
+        is_active=False,
+    )
+
+
+def test_customer_subscription_paused_unexpected_error(mocker):
+    # Mock de session y Repository
+    mock_session = mocker.Mock()
+    mock_sub_repo = mocker.Mock()
+
+    # Mockear para que de error
+    mock_sub_repo.update_for_user.side_effect = Exception("Simulated Error")
+
+    # Mockea get_session para devolver la session mockeada
+    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+
+    # Mockea el SubscriptionRepository
+    mocker.patch(
+        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
+    )
+
+    # Mock del payload
+    payload_mocked = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "incomplete",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
+    # Llamada a la función
+    with pytest.raises(Exception):
+        customer_subscription_paused(payload_mocked)
+
+    # Verificaciones
+    mock_sub_repo.update_for_user.assert_called_once_with(
+        sub_id=payload_mocked["id"],
+        customer_id=payload_mocked["customer"],
+        status=payload_mocked["status"],
+        current_period_end=None,
+        is_active=False,
     )
