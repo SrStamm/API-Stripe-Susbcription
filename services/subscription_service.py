@@ -11,7 +11,6 @@ from schemas.exceptions import (
     UserSubscriptedError,
 )
 from core.stripe_test import cancelSubscription, createSubscription
-from core.logger import logger
 from datetime import datetime
 
 
@@ -43,7 +42,7 @@ class SubscriptionService:
                 raise UserNotFoundError(user_id)
 
             # Obtiene el plan y el price_id
-            plan = self.plan_repo.get_plan_by_plan_id(data.plan_id)
+            plan = self.plan_repo.get_plan_by_tier(tier=data.tier)
             if not plan:
                 raise PlanNotFound("id_not_found")
 
@@ -52,15 +51,15 @@ class SubscriptionService:
 
             # Verifica que el usuario no este suscrito
             for sub in all_subs:
-                if sub.plan_id == data.plan_id:
-                    raise UserSubscriptedError(user_id=user_id, plan_id=data.plan_id)
+                if sub.tier == data.tier:
+                    raise UserSubscriptedError(user_id=user_id, plan_id=plan.id)
 
             # Crea una nueva suscripción en Stripe
             subs = createSubscription(
                 customer_id=user.stripe_customer_id,
                 price_id=plan.stripe_price_id,
                 user_id=user_id,
-                plan_id=data.plan_id,
+                plan_id=plan.id,
             )
 
             current_period_end = subs["current_period_end"]
@@ -69,9 +68,10 @@ class SubscriptionService:
 
             self.repo.create(
                 user_id=user_id,
-                plan_id=data.plan_id,
+                plan_id=plan.id,
                 subscription_id=subs["subscription_id"],
                 status=subs["status"],
+                tier=data.tier,
                 current_period_end=current_period_end,
             )
 

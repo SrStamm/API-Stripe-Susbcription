@@ -1,4 +1,8 @@
 from fastapi import HTTPException, status
+from sqlalchemy.sql.coercions import expect_col_expression_collection
+
+from models import user
+from schemas.enums import SubscriptionTier
 
 
 class NotAuthorized(HTTPException):
@@ -127,4 +131,14 @@ class UserNotSubscriptedError(HTTPException):
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User {user_id} is not subscripted to plan {sub_id}",
+        )
+
+
+class InsufficientSubscriptionError(HTTPException):
+    def __init__(self, user_tier: SubscriptionTier, expected_tier: SubscriptionTier):
+        self.user_tier = user_tier
+        self.expected_tier = expected_tier
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"User with tier {user_tier.value} is not sufficient. Need for minimun {expected_tier.value} to access",
         )

@@ -1,4 +1,5 @@
 from schemas import request
+from schemas.enums import SubscriptionTier
 from schemas.request import SubID
 from test.conftest import client, auth_headers
 from services.subscription_service import SubscriptionService, get_subs_service
@@ -101,7 +102,10 @@ def test_create_success(client, mocker, auth_headers):
     response = client.post(
         "/subscriptions/",
         headers=auth_headers,
-        json={"plan_id": 1, "current_period_end": dt.now().isoformat()},
+        json={
+            "tier": SubscriptionTier.free,
+            "current_period_end": dt.now().isoformat(),
+        },
     )
 
     assert response.status_code == 200

@@ -2,6 +2,7 @@ from fastapi import Depends
 from db.session import Session, get_session, select, SQLAlchemyError
 from models.subscription import Subscriptions
 from models.user import Users
+from schemas.enums import SubscriptionTier
 from schemas.exceptions import DatabaseError, SubscriptionNotFound
 from core.logger import logger
 from typing import Optional
@@ -39,6 +40,17 @@ class SubscriptionRepository:
         )
         return self.session.exec(stmt).first()
 
+    def get_sub_with_customer_id(self, customer_id: str):
+        stmt = (
+            select(Subscriptions)
+            .join(Users)
+            .where(
+                Subscriptions.user_id == Users.id,
+                Users.stripe_customer_id == customer_id,
+            )
+        )
+        return self.session.exec(stmt).first()
+
     def create(
         self,
         user_id: int,
@@ -46,6 +58,7 @@ class SubscriptionRepository:
         subscription_id: str,
         status: str,
         current_period_end: datetime,
+        tier: SubscriptionTier,
     ):
         try:
             new_susc = Subscriptions(
@@ -54,6 +67,7 @@ class SubscriptionRepository:
                 stripe_subscription_id=subscription_id,
                 status=status,
                 current_period_end=current_period_end,
+                tier=tier,
             )
             self.session.add(new_susc)
             self.session.commit()

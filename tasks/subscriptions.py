@@ -1,12 +1,54 @@
+from sqlmodel import true
 from db.session import get_session
+from repositories.plan_repositories import PlanRepository
 from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
-from tasks.app import app
-from schemas.exceptions import DatabaseError
+from repositories.user_repositories import UserRepository
+from schemas.enums import SubscriptionTier
+from tasks.app import celery_app
+from schemas.exceptions import DatabaseError, PlanNotFound
 
 
-@app.task(
+@celery_app.task
+def customer_sub_basic(payload: dict):
+    session = next(get_session())
+    sub_repo = SubscriptionRepository(session)
+    plan_repo = PlanRepository(session)
+    user_repo = UserRepository(session)
+
+    try:
+        user = user_repo.get_user_by_customer_id(payload["id"])
+        if not user:
+            raise Exception(f"User with stripe_id {payload['id']}")
+
+        plan = plan_repo.get_plan_by_plan_id(id=5)
+        if not plan:
+            raise Exception('Plan with ID 5 ("FREE") not found: ')
+
+        sub_repo.create(
+            user_id=user.id,
+            plan_id=plan.id,
+            subscription_id="sub_free",
+            status="free",
+            current_period_end=datetime.now(),
+            tier=SubscriptionTier.free,
+        )
+
+        sub_repo.update_for_user(
+            sub_id="sub_free",
+            customer_id=payload["id"],
+            status="active",
+            current_period_end=None,
+            is_active=True,
+        )
+
+        logger.info(f"User {user.id} was suscripted to trial free correctly ")
+    except DatabaseError as e:
+        raise e
+
+
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -17,13 +59,11 @@ from schemas.exceptions import DatabaseError
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_created(payload: dict):
+def customer_subscription_created(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
     try:
-        logger.info(f"Customer.Subscription.created: {payload}")
-
         current_period_end = datetime.fromtimestamp(
             payload["items"]["data"][0]["current_period_end"]
         )
@@ -41,13 +81,13 @@ def customer_subscription_created(payload: dict):
         logger.error(
             f"Database error in customer_subscription_created for {payload['id']}: {e}"
         )
-        raise
+        raise e
     except Exception as e:
         logger.error(f"Error in Customer Subscription Created: {e}")
-        raise
+        raise e
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -58,7 +98,7 @@ def customer_subscription_created(payload: dict):
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_updated(payload: dict):
+def customer_subscription_updated(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
@@ -68,12 +108,19 @@ def customer_subscription_updated(payload: dict):
             payload["items"]["data"][0]["current_period_end"]
         )
 
+        case_falses = ["paused", "incomplete"]
+
+        if payload["status"] in case_falses:
+            active = False
+        else:
+            active = True
+
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
             status=payload["status"],
             current_period_end=current_period_end,
-            is_active=True,
+            is_active=active,
         )
 
         logger.info(f"Customer subscription {payload['id']} updated correctly")
@@ -88,7 +135,7 @@ def customer_subscription_updated(payload: dict):
         raise
 
 
-@app.task(
+@celery_app.task(
     bind=True,
     autoretry_for=(
         Exception,
@@ -99,7 +146,7 @@ def customer_subscription_updated(payload: dict):
     max_retries=3,
     default_retry_delay=1,
 )
-def customer_subscription_deleted(payload: dict):
+def customer_subscription_deleted(self, payload: dict):
     session = next(get_session())
     subs_repo = SubscriptionRepository(session)
 
@@ -123,4 +170,40 @@ def customer_subscription_deleted(payload: dict):
         raise
     except Exception as e:
         logger.error(f"Error in Customer Subscription Deleted: {e}")
+        raise
+
+
+@celery_app.task(
+    bind=True,
+    autoretry_for=(
+        Exception,
+        DatabaseError,
+    ),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+    default_retry_delay=1,
+)
+def customer_subscription_paused(self, payload: dict):
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+
+    try:
+        subs_repo.update_for_user(
+            sub_id=payload["id"],
+            customer_id=payload["customer"],
+            status=payload["status"],
+            current_period_end=None,
+            is_active=False,
+        )
+
+        logger.info(f"Customer subscription {payload['id']} updated correctly")
+
+    except DatabaseError as e:
+        logger.error(
+            f"Database error in customer_subscription_updated for {payload['id']}: {e}"
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Error in Customer Subscription Updated: {e}")
         raise

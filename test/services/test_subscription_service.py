@@ -2,6 +2,7 @@ import pytest
 from models.plan import Plans
 from models.subscription import Subscriptions
 from models.user import Users
+from schemas.enums import SubscriptionTier
 from schemas.exceptions import (
     DatabaseError,
     PlanNotFound,
@@ -124,7 +125,7 @@ def test_create_success(mocker):
         price_cents=200,
         interval="month",
     )
-    plan_repo_mock.get_plan_by_plan_id.return_value = mock_plan
+    plan_repo_mock.get_plan_by_tier.return_value = mock_plan
 
     sub_repo_mock.get_all_subscription_by_user.return_value = []
 
@@ -146,7 +147,7 @@ def test_create_success(mocker):
     )
 
     subscription_data = SubscriptionCreate(
-        plan_id=1, current_period_end=mock_current_period_end
+        tier=SubscriptionTier.free, current_period_end=mock_current_period_end
     )
 
     serv.create(
@@ -161,6 +162,7 @@ def test_create_success(mocker):
         current_period_end=mock_current_period_end,
         user_id=1,
         status="incomplete",
+        tier=SubscriptionTier.free,
     )
 
     mock_create_subscription.assert_called_once_with(
@@ -183,7 +185,9 @@ def test_create_not_found(mocker):
         repo=sub_repo_mock, user_repo=user_repo_mock, plan_repo=plan_repo_mock
     )
 
-    subscription_data = SubscriptionCreate(plan_id=1, current_period_end=dt.now())
+    subscription_data = SubscriptionCreate(
+        tier=SubscriptionTier.free, current_period_end=dt.now()
+    )
 
     with pytest.raises(UserNotFoundError):
         serv.create(
@@ -194,7 +198,7 @@ def test_create_not_found(mocker):
     mock_user = Users(id=1, email="test@gmail.com", stripe_customer_id="cus_mock_123")
     user_repo_mock.get_user_by_id.return_value = mock_user
 
-    plan_repo_mock.get_plan_by_plan_id.return_value = None
+    plan_repo_mock.get_plan_by_tier.return_value = None
 
     with pytest.raises(PlanNotFound):
         serv.create(
@@ -210,7 +214,7 @@ def test_create_not_found(mocker):
         price_cents=200,
         interval="month",
     )
-    plan_repo_mock.get_plan_by_plan_id.return_value = mock_plan
+    plan_repo_mock.get_plan_by_tier.return_value = mock_plan
 
     sub_repo_mock.get_all_subscription_by_user.return_value = [
         Subscriptions(
@@ -237,7 +241,9 @@ def test_create_db_error(mocker):
     plan_repo_mock = mocker.Mock()
 
     # Mock data
-    subscription_data = SubscriptionCreate(plan_id=1, current_period_end=dt.now())
+    subscription_data = SubscriptionCreate(
+        tier=SubscriptionTier.free, current_period_end=dt.now()
+    )
 
     mock_user = Users(id=1, email="test@gmail.com", stripe_customer_id="cus_mock_123")
 
@@ -253,7 +259,7 @@ def test_create_db_error(mocker):
     # Mock repo funciones
     user_repo_mock.get_user_by_id.return_value = mock_user
 
-    plan_repo_mock.get_plan_by_plan_id.return_value = mock_plan
+    plan_repo_mock.get_plan_by_tier.return_value = mock_plan
 
     sub_repo_mock.get_all_subscription_by_user.return_value = []
 
