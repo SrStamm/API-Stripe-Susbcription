@@ -151,6 +151,16 @@ class SubscriptionService:
         }
 
     # Celery task handlers
+    def _get_existing_subscription(self, sub_id: str, customer_id: str):
+        """Get existing subscription or raise exception.
+
+        Helper to avoid code duplication in handlers.
+        """
+        sub = self.repo.get_subscription_for_user(sub_id=sub_id, customer_id=customer_id)
+        if not sub:
+            raise Exception(f"Subscription {sub_id} not found")
+        return sub
+
     def handle_customer_sub_basic(self, customer_id: str):
         """Create free trial subscription for user."""
         logger.info(f"Processing customer_sub_basic - customer_id: {customer_id}")
@@ -159,9 +169,9 @@ class SubscriptionService:
         if not user:
             raise Exception(f"User with stripe_id {customer_id}")
 
-        plan = self.plan_repo.get_plan_by_plan_id(id=5)
+        plan = self.plan_repo.get_plan_by_tier(tier=SubscriptionTier.free)
         if not plan:
-            raise Exception('Plan with ID 5 ("FREE") not found')
+            raise Exception('Plan with tier FREE not found')
 
         self.repo.create(
             user_id=user.id,
@@ -188,12 +198,8 @@ class SubscriptionService:
             f"Processing invoice.paid - sub_id: {data.subscription_id}, customer_id: {data.customer_id}"
         )
 
-        sub = self.repo.get_subscription_for_user(
-            sub_id=data.subscription_id, customer_id=data.customer_id
-        )
-
-        if not sub:
-            raise Exception(f"Subscription {data.subscription_id} not found")
+        # Uses helper to avoid repetition
+        self._get_existing_subscription(data.subscription_id, data.customer_id)
 
         status = SubscriptionStatus.from_stripe(data.status)
 
@@ -213,12 +219,8 @@ class SubscriptionService:
             f"Processing invoice.payment_failed - sub_id: {data.subscription_id}, customer_id: {data.customer_id}"
         )
 
-        sub = self.repo.get_subscription_for_user(
-            sub_id=data.subscription_id, customer_id=data.customer_id
-        )
-
-        if not sub:
-            raise Exception(f"Subscription {data.subscription_id} not found")
+        # Uses helper to avoid repetition
+        self._get_existing_subscription(data.subscription_id, data.customer_id)
 
         self.repo.update_for_user(
             sub_id=data.subscription_id,

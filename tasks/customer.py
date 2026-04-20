@@ -1,19 +1,13 @@
-from db.session import get_session
-from repositories.user_repositories import UserRepository
-from services.customer_service import CustomerService
+from pydantic import ValidationError
+
+from core.logger import logger
 from parsers.customer import (
     CustomerPayload,
     parse_customer_created,
     parse_customer_deleted,
 )
+from helpers.context import get_customer_service
 from tasks.app import celery_app
-
-
-def _get_customer_service() -> CustomerService:
-    """Create CustomerService instance for Celery tasks."""
-    session = next(get_session())
-    user_repo = UserRepository(session)
-    return CustomerService(user_repo)
 
 
 @celery_app.task(
@@ -27,14 +21,18 @@ def _get_customer_service() -> CustomerService:
 def customer_created(self, payload: dict):
     """Handle customer.created webhook."""
     # Validate payload structure
-    data = CustomerPayload(**payload)
+    try:
+        data = CustomerPayload(**payload)
+    except ValidationError as e:
+        logger.warning(f"Invalid customer.created payload: {e}")
+        return  # No retry for validation errors
 
     # Parse to extract needed info
     info = parse_customer_created(data)
 
     # Execute service
-    service = _get_customer_service()
-    service.handle_customer_created(info)
+    with get_customer_service() as service:
+        service.handle_customer_created(info)
 
 
 @celery_app.task(
@@ -48,11 +46,15 @@ def customer_created(self, payload: dict):
 def customer_deleted(self, payload: dict):
     """Handle customer.deleted webhook."""
     # Validate payload structure
-    data = CustomerPayload(**payload)
+    try:
+        data = CustomerPayload(**payload)
+    except ValidationError as e:
+        logger.warning(f"Invalid customer.deleted payload: {e}")
+        return  # No retry for validation errors
 
     # Parse to extract needed info
     info = parse_customer_deleted(data)
 
     # Execute service
-    service = _get_customer_service()
-    service.handle_customer_deleted(info)
+    with get_customer_service() as service:
+        service.handle_customer_deleted(info)
