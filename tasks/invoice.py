@@ -3,6 +3,7 @@ from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
 from tasks.app import celery_app
+from schemas.enums import SubscriptionStatus
 
 
 @celery_app.task(
@@ -55,7 +56,7 @@ def invoice_paid(self, payload: dict):
         # Obtiene el ID de customer, el period end y status de suscripción
         customer_id = payload.get("customer")
         current_period_end = datetime.fromtimestamp(line["period"]["end"])
-        status = payload.get("status")
+        status = SubscriptionStatus.from_stripe(payload.get("status", "paid"))
 
         logger.info(
             f"Webhook invoice.paid - sub_id: {subscription_id}, customer_id: {customer_id}"
@@ -127,7 +128,7 @@ def invoice_payment_failed(self, payload: dict):
         # Obtiene el ID de customer, el period end y status de suscripción
         customer_id = payload.get("customer")
         current_period_end = datetime.fromtimestamp(line["period"]["end"])
-        status = payload.get("status")
+        status = SubscriptionStatus.from_stripe("past_due")
 
         logger.info(f"Webhook invoice.payment_failed - customer_id: {customer_id}")
 

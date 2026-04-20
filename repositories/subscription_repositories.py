@@ -2,11 +2,18 @@ from fastapi import Depends
 from db.session import Session, get_session, select, SQLAlchemyError
 from models.subscription import Subscriptions
 from models.user import Users
-from schemas.enums import SubscriptionTier
+from schemas.enums import SubscriptionTier, SubscriptionStatus
 from schemas.exceptions import DatabaseError, SubscriptionNotFound
 from core.logger import logger
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime, timezone
+
+
+def _normalize_status(status: Union[str, SubscriptionStatus]) -> SubscriptionStatus:
+    """Convierte status string a SubscriptionStatus Enum."""
+    if isinstance(status, SubscriptionStatus):
+        return status
+    return SubscriptionStatus.from_stripe(status)
 
 
 class SubscriptionRepository:
@@ -56,11 +63,12 @@ class SubscriptionRepository:
         user_id: int,
         plan_id: int,
         subscription_id: str,
-        status: str,
+        status: Union[str, SubscriptionStatus],
         current_period_end: datetime,
         tier: SubscriptionTier,
     ):
         try:
+            status = _normalize_status(status)
             new_susc = Subscriptions(
                 user_id=user_id,
                 plan_id=plan_id,
@@ -76,7 +84,7 @@ class SubscriptionRepository:
             raise DatabaseError(e, "SubscriptionRepository.create")
 
     def update(
-        self, id: str, status: Optional[str], current_period_end: Optional[datetime]
+        self, id: str, status: Optional[Union[str, SubscriptionStatus]], current_period_end: Optional[datetime]
     ):
         try:
             sub_found = self.get_subscription_by_id(id)
@@ -86,7 +94,7 @@ class SubscriptionRepository:
                 raise SubscriptionNotFound(id)
 
             if status:
-                sub_found.status = status
+                sub_found.status = _normalize_status(status)
 
             if current_period_end:
                 sub_found.current_period_end = current_period_end
@@ -100,11 +108,12 @@ class SubscriptionRepository:
         self,
         sub_id: str,
         customer_id: str,
-        status: str,
+        status: Union[str, SubscriptionStatus],
         current_period_end: Optional[datetime],
         is_active: bool,
     ):
         try:
+            status = _normalize_status(status)
             sub_found = self.get_subscription_for_user(sub_id, customer_id)
 
             if not sub_found:
@@ -127,9 +136,10 @@ class SubscriptionRepository:
             raise DatabaseError(e, "SubscriptionRepository.update_for_user")
 
     def cancel(
-        self, sub_id: str, customer_id: str, status: str, current_period_end: datetime
+        self, sub_id: str, customer_id: str, status: Union[str, SubscriptionStatus], current_period_end: datetime
     ):
         try:
+            status = _normalize_status(status)
             sub_found = self.get_subscription_for_user(sub_id, customer_id)
 
             if not sub_found:

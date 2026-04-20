@@ -1,5 +1,6 @@
 from repositories.subscription_repositories import SubscriptionRepository
 from tasks.invoice import invoice_paid, invoice_payment_failed
+from schemas.enums import SubscriptionStatus
 import pytest
 from datetime import datetime
 
@@ -65,7 +66,7 @@ def test_invoice_paid_success(mocker):
     mock_repo.update_for_user.assert_called_once_with(
         sub_id="sub_test",
         customer_id="cus_test",
-        status="paid",
+        status=SubscriptionStatus.paid,
         current_period_end=datetime.fromtimestamp(123456789),
         is_active=True,
     )
@@ -203,7 +204,7 @@ def test_invoice_payment_failed_success(mocker):
     mock_repo.update_for_user.assert_called_once_with(
         sub_id="sub_test",
         customer_id="cus_test",
-        status="failed",
+        status=SubscriptionStatus.past_due,
         current_period_end=datetime.fromtimestamp(123456789),
         is_active=False,
     )

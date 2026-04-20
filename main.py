@@ -7,7 +7,7 @@ from core.logger import register_exceptions_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
+    # create_db_and_tables()
     yield
 
 
