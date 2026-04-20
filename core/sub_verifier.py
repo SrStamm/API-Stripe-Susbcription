@@ -14,7 +14,10 @@ def require_subscription_tier(min_tier: SubscriptionTier):
         user_subs = sub_serv.get_all_subscription_by_user(id=user.id)
 
         if not user_subs:
-            raise
+            raise InsufficientSubscriptionError(
+                user_tier=SubscriptionTier.free,
+                expected_tier=min_tier,
+            )
 
         user_tier = SubscriptionTier(value=user_subs[0].tier)
 
