@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from db.session import create_db_and_tables
 from contextlib import asynccontextmanager
 from api import users, subscriptions, plans, auth, webhooks, products
+from core.logger import register_exceptions_handlers
 
 
 @asynccontextmanager
@@ -11,6 +12,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+register_exceptions_handlers(app)
 
 app.include_router(users.router)
 app.include_router(subscriptions.router)

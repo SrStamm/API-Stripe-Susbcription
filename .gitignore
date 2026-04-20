@@ -223,3 +223,5 @@ app.log
 env
 .env
 .coverage
+resterm.env.json
+rts/
