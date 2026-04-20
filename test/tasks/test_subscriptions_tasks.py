@@ -1,7 +1,12 @@
+from datetime import datetime
+from unittest.mock import Mock
+
+import pytest
+
 from models.plan import Plans
 from models.user import Users
+from schemas.enums import SubscriptionStatus
 from schemas.exceptions import DatabaseError
-from schemas.enums import SubscriptionTier, SubscriptionStatus
 from tasks.subscriptions import (
     customer_sub_basic,
     customer_subscription_created,
@@ -9,623 +14,347 @@ from tasks.subscriptions import (
     customer_subscription_paused,
     customer_subscription_updated,
 )
-from datetime import datetime
-import pytest
 
 
-def test_customer_sub_basic_success(mocker):
-    # Mock de session y Repository
+@pytest.fixture
+def mock_repos(mocker):
+    """Mock repositories for task tests."""
     mock_session = mocker.Mock()
     mock_sub_repo = mocker.Mock()
     mock_plan_repo = mocker.Mock()
     mock_user_repo = mocker.Mock()
 
-    # Mockea las llamadas al repo
-    mock_user_repo.get_user_by_customer_id.return_value = Users(
-        id=1, email="test@gmail.com", stripe_customer_id=None
+    mocker.patch("db.session.get_session", return_value=iter([mock_session]))
+    mocker.patch(
+        "helpers.context.SubscriptionRepository",
+        return_value=mock_sub_repo,
+    )
+    mocker.patch(
+        "helpers.context.UserRepository",
+        return_value=mock_user_repo,
+    )
+    mocker.patch(
+        "helpers.context.PlanRepository",
+        return_value=mock_plan_repo,
     )
 
-    mock_plan_repo.get_plan_by_plan_id.return_value = Plans(
+    return {
+        "session": mock_session,
+        "sub_repo": mock_sub_repo,
+        "plan_repo": mock_plan_repo,
+        "user_repo": mock_user_repo,
+    }
+
+
+def test_customer_sub_basic_success(mock_repos):
+    """Test successful customer_sub_basic."""
+    user_repo = mock_repos["user_repo"]
+    plan_repo = mock_repos["plan_repo"]
+    sub_repo = mock_repos["sub_repo"]
+
+    user_repo.get_user_by_customer_id.return_value = Users(
+        id=1, email="test@gmail.com", stripe_customer_id=None
+    )
+    plan_repo.get_plan_by_tier.return_value = Plans(
         id=1,
         stripe_price_id="price_mocked",
-        name="test",
+        name="free",
         description=None,
-        price_cents=1000,
+        price_cents=0,
         interval="month",
     )
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+    payload = {"id": "cus_mock_test"}
 
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-    mocker.patch("tasks.subscriptions.PlanRepository", return_value=mock_plan_repo)
-    mocker.patch("tasks.subscriptions.UserRepository", return_value=mock_user_repo)
+    customer_sub_basic(payload)
 
-    # Mock del payload
-    payload_mocked = {"id": "cus_mock_test"}
-
-    # Llamada a la función
-    customer_sub_basic(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id="sub_free",
-        customer_id="cus_mock_test",
-        status=SubscriptionStatus.trialing,
-        current_period_end=None,
-        is_active=True,
-    )
+    user_repo.get_user_by_customer_id.assert_called_once_with("cus_mock_test")
+    sub_repo.create.assert_called_once()
+    sub_repo.update_for_user.assert_called_once()
 
 
-def test_customer_sub_basic_user_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-    mock_plan_repo = mocker.Mock()
-    mock_user_repo = mocker.Mock()
+def test_customer_sub_basic_user_error(mock_repos):
+    """Test customer_sub_basic when user not found."""
+    user_repo = mock_repos["user_repo"]
 
-    # Mockea las llamadas al repo
-    mock_user_repo.get_user_by_customer_id.return_value = None
+    user_repo.get_user_by_customer_id.return_value = None
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+    payload = {"id": "cus_mock_test"}
 
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-    mocker.patch("tasks.subscriptions.PlanRepository", return_value=mock_plan_repo)
-    mocker.patch("tasks.subscriptions.UserRepository", return_value=mock_user_repo)
-
-    # Mock del payload
-    payload_mocked = {"id": "cus_mock_test"}
-
-    # Llamada a la función
     with pytest.raises(Exception):
-        customer_sub_basic(payload_mocked)
+        customer_sub_basic(payload)
 
 
-def test_customer_sub_basic_plan_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-    mock_plan_repo = mocker.Mock()
-    mock_user_repo = mocker.Mock()
+def test_customer_sub_basic_plan_error(mock_repos):
+    """Test customer_sub_basic when plan not found."""
+    user_repo = mock_repos["user_repo"]
+    plan_repo = mock_repos["plan_repo"]
 
-    # Mockea las llamadas al repo
-    mock_user_repo.get_user_by_customer_id.return_value = Users(
+    user_repo.get_user_by_customer_id.return_value = Users(
         id=1, email="test@gmail.com", stripe_customer_id=None
     )
+    plan_repo.get_plan_by_tier.return_value = None
 
-    mock_plan_repo.get_plan_by_plan_id.return_value = None
+    payload = {"id": "cus_mock_test"}
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-    mocker.patch("tasks.subscriptions.PlanRepository", return_value=mock_plan_repo)
-    mocker.patch("tasks.subscriptions.UserRepository", return_value=mock_user_repo)
-
-    # Mock del payload
-    payload_mocked = {"id": "cus_mock_test"}
-
-    # Llamada a la función
     with pytest.raises(Exception):
-        customer_sub_basic(payload_mocked)
+        customer_sub_basic(payload)
 
 
-def test_customer_sub_basic_db_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-    mock_plan_repo = mocker.Mock()
-    mock_user_repo = mocker.Mock()
+def test_customer_sub_basic_db_error(mock_repos):
+    """Test customer_sub_basic with DB error."""
+    user_repo = mock_repos["user_repo"]
 
-    # Mockea las llamadas al repo
-    mock_user_repo.get_user_by_customer_id.side_effect = DatabaseError(
-        error="DB error false", func="get_user_by_customer_id"
+    user_repo.get_user_by_customer_id.side_effect = DatabaseError(
+        error="DB error", func="get_user_by_customer_id"
     )
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
+    payload = {"id": "cus_mock_test"}
 
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-    mocker.patch("tasks.subscriptions.PlanRepository", return_value=mock_plan_repo)
-    mocker.patch("tasks.subscriptions.UserRepository", return_value=mock_user_repo)
-
-    # Mock del payload
-    payload_mocked = {"id": "cus_mock_test"}
-
-    # Llamada a la función
     with pytest.raises(DatabaseError):
-        customer_sub_basic(payload_mocked)
+        customer_sub_basic(payload)
 
 
-def test_customer_subscription_created_success(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_created_success(mock_repos):
+    """Test successful customer.subscription.created."""
+    sub_repo = mock_repos["sub_repo"]
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "test",
+        "status": "active",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
+    customer_subscription_created(payload)
 
-    # Llamada a la función
-    customer_subscription_created(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
+    sub_repo.update_for_user.assert_called_once_with(
+        sub_id="sub_mock_test",
+        customer_id="cus_mock_test",
+        status=SubscriptionStatus.trialing,
+        current_period_end=datetime.fromtimestamp(123456789),
         is_active=True,
     )
 
 
-def test_customer_subscription_created_db_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Mockea la accion del repositorio
-    mock_sub_repo.update_for_user.side_effect = DatabaseError(
-        error="DB error false", func="update_for_user"
+def test_customer_subscription_created_db_error(mock_repos):
+    """Test customer.subscription.created with DB error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = DatabaseError(
+        error="DB error", func="update_for_user"
     )
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "test",
+        "status": "active",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
-
-    # Llamada a la función
     with pytest.raises(DatabaseError):
-        customer_subscription_created(payload_mocked)
+        customer_subscription_created(payload)
 
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
+
+def test_customer_subscription_created_unexpected_error(mock_repos):
+    """Test customer.subscription.created with unexpected error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = Exception("Unexpected")
+
+    payload = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "active",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
+    with pytest.raises(Exception):
+        customer_subscription_created(payload)
+
+
+def test_customer_subscription_updated_success(mock_repos):
+    """Test successful customer.subscription.updated."""
+    sub_repo = mock_repos["sub_repo"]
+
+    payload = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "active",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
+    customer_subscription_updated(payload)
+
+    sub_repo.update_for_user.assert_called_once_with(
+        sub_id="sub_mock_test",
+        customer_id="cus_mock_test",
+        status=SubscriptionStatus.trialing,
+        current_period_end=datetime.fromtimestamp(123456789),
         is_active=True,
     )
 
 
-def test_customer_subscription_created_unexpected_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_updated_inactive(mock_repos):
+    """Test customer.subscription.updated with inactive status."""
+    sub_repo = mock_repos["sub_repo"]
 
-    # Mockea la accion del repositorio
-    mock_sub_repo.update_for_user.side_effect = Exception("DB error false")
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
-        "id": "sub_mock_test",
-        "customer": "cus_mock_test",
-        "status": "test",
-        "items": {"data": [{"current_period_end": 123456789}]},
-    }
-
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
-
-    # Llamada a la función
-    with pytest.raises(Exception):
-        customer_subscription_created(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
-        is_active=True,
-    )
-
-
-def test_customer_subscription_updated_success(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
         "status": "incomplete",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
+    customer_subscription_updated(payload)
 
-    # Llamada a la función
-    customer_subscription_updated(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
+    sub_repo.update_for_user.assert_called_once_with(
+        sub_id="sub_mock_test",
+        customer_id="cus_mock_test",
+        status=SubscriptionStatus.incomplete,
+        current_period_end=datetime.fromtimestamp(123456789),
         is_active=False,
     )
 
 
-def test_customer_subscription_updated_unexpected_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_updated_unexpected_error(mock_repos):
+    """Test customer.subscription.updated with unexpected error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = Exception("Unexpected")
 
-    # Simulando error
-    mock_sub_repo.update_for_user.side_effect = Exception("Unexpected Error Simulated")
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "incomplete",
+        "status": "active",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
-
-    # Llamada a la función
     with pytest.raises(Exception):
-        customer_subscription_updated(payload_mocked)
+        customer_subscription_updated(payload)
 
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
-        is_active=False,
+
+def test_customer_subscription_updated_db_error(mock_repos):
+    """Test customer.subscription.updated with DB error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = DatabaseError(
+        error="DB error", func="update_for_user"
     )
 
-
-def test_customer_subscription_updated_db_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Simulando error
-    mock_sub_repo.update_for_user.side_effect = DatabaseError(
-        error="Unexpected Error Simulated", func="update_for_user"
-    )
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "incomplete",
+        "status": "active",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
-
-    # Llamada a la función
     with pytest.raises(DatabaseError):
-        customer_subscription_updated(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
-        is_active=False,
-    )
+        customer_subscription_updated(payload)
 
 
-def test_customer_subscription_deleted_success(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_deleted_success(mock_repos):
+    """Test successful customer.subscription.deleted."""
+    sub_repo = mock_repos["sub_repo"]
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "test",
+        "status": "canceled",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
+    customer_subscription_deleted(payload)
 
-    # Llamada a la función
-    customer_subscription_deleted(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.cancel.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
+    sub_repo.cancel.assert_called_once_with(
+        sub_id="sub_mock_test",
+        customer_id="cus_mock_test",
+        status=SubscriptionStatus.from_stripe("canceled"),
+        current_period_end=datetime.fromtimestamp(123456789),
     )
 
 
-def test_customer_subscription_deleted_db_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Mockea para que de error
-    mock_sub_repo.cancel.side_effect = DatabaseError(
-        error="DB error false", func="cancel"
+def test_customer_subscription_deleted_db_error(mock_repos):
+    """Test customer.subscription.deleted with DB error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.cancel.side_effect = DatabaseError(
+        error="DB error", func="cancel"
     )
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "test",
+        "status": "canceled",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
+    with pytest.raises(DatabaseError):
+        customer_subscription_deleted(payload)
 
-    # Llamada a la función
+
+def test_customer_subscription_deleted_unexpected_error(mock_repos):
+    """Test customer.subscription.deleted with unexpected error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.cancel.side_effect = Exception("Unexpected")
+
+    payload = {
+        "id": "sub_mock_test",
+        "customer": "cus_mock_test",
+        "status": "canceled",
+        "items": {"data": [{"current_period_end": 123456789}]},
+    }
+
     with pytest.raises(Exception):
-        customer_subscription_deleted(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.cancel.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
-    )
+        customer_subscription_deleted(payload)
 
 
-def test_customer_subscription_deleted_unexpected_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_paused_success(mock_repos):
+    """Test successful customer.subscription.paused."""
+    sub_repo = mock_repos["sub_repo"]
 
-    # Mockea para que de error
-    mock_sub_repo.cancel.side_effect = Exception("DB error false")
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "test",
+        "status": "paused",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    current_period_end_mocked = datetime.fromtimestamp(
-        payload_mocked["items"]["data"][0]["current_period_end"]
-    )
+    customer_subscription_paused(payload)
 
-    # Llamada a la función
-    with pytest.raises(Exception):
-        customer_subscription_deleted(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.cancel.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=current_period_end_mocked,
-    )
-
-
-def test_customer_subscription_paused_success(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
-        "id": "sub_mock_test",
-        "customer": "cus_mock_test",
-        "status": "incomplete",
-        "items": {"data": [{"current_period_end": 123456789}]},
-    }
-
-    # Llamada a la función
-    customer_subscription_paused(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
+    sub_repo.update_for_user.assert_called_once_with(
+        sub_id="sub_mock_test",
+        customer_id="cus_mock_test",
+        status=SubscriptionStatus.from_stripe("paused"),
         current_period_end=None,
         is_active=False,
     )
 
 
-def test_customer_subscription_paused_db_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
-
-    # Mockear para que de error
-    mock_sub_repo.update_for_user.side_effect = DatabaseError(
-        error="DB error false", func="update_for_user"
+def test_customer_subscription_paused_db_error(mock_repos):
+    """Test customer.subscription.paused with DB error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = DatabaseError(
+        error="DB error", func="update_for_user"
     )
 
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "incomplete",
+        "status": "paused",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    # Llamada a la función
     with pytest.raises(DatabaseError):
-        customer_subscription_paused(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=None,
-        is_active=False,
-    )
+        customer_subscription_paused(payload)
 
 
-def test_customer_subscription_paused_unexpected_error(mocker):
-    # Mock de session y Repository
-    mock_session = mocker.Mock()
-    mock_sub_repo = mocker.Mock()
+def test_customer_subscription_paused_unexpected_error(mock_repos):
+    """Test customer.subscription.paused with unexpected error."""
+    sub_repo = mock_repos["sub_repo"]
+    sub_repo.update_for_user.side_effect = Exception("Unexpected")
 
-    # Mockear para que de error
-    mock_sub_repo.update_for_user.side_effect = Exception("Simulated Error")
-
-    # Mockea get_session para devolver la session mockeada
-    mocker.patch("tasks.invoice.get_session", return_value=iter([mock_session]))
-
-    # Mockea el SubscriptionRepository
-    mocker.patch(
-        "tasks.subscriptions.SubscriptionRepository", return_value=mock_sub_repo
-    )
-
-    # Mock del payload
-    payload_mocked = {
+    payload = {
         "id": "sub_mock_test",
         "customer": "cus_mock_test",
-        "status": "incomplete",
+        "status": "paused",
         "items": {"data": [{"current_period_end": 123456789}]},
     }
 
-    # Llamada a la función
     with pytest.raises(Exception):
-        customer_subscription_paused(payload_mocked)
-
-    # Verificaciones
-    mock_sub_repo.update_for_user.assert_called_once_with(
-        sub_id=payload_mocked["id"],
-        customer_id=payload_mocked["customer"],
-        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
-        current_period_end=None,
-        is_active=False,
-    )
+        customer_subscription_paused(payload)
