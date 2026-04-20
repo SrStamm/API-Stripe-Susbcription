@@ -1,63 +1,60 @@
-from db.session import get_session
-from repositories.user_repositories import UserRepository
+from pydantic import ValidationError
+
 from core.logger import logger
-from schemas.exceptions import DatabaseError
+from parsers.customer import (
+    CustomerPayload,
+    parse_customer_created,
+    parse_customer_deleted,
+)
+from helpers.context import get_customer_service
 from tasks.app import celery_app
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_created(self, payload: dict):
-    session = next(get_session())
-    user_repo = UserRepository(session)
-
+    """Handle customer.created webhook."""
+    # Validate payload structure
     try:
-        user = user_repo.get_user_by_customer_id(payload["id"])
+        data = CustomerPayload(**payload)
+    except ValidationError as e:
+        logger.warning(f"Invalid customer.created payload: {e}")
+        return  # No retry for validation errors
 
-        if not user:
-            user = user_repo.create(email=payload["email"])
+    # Parse to extract needed info
+    info = parse_customer_created(data)
 
-            user_repo.update(id=user.id, stripe_id=payload["id"])
-
-    except DatabaseError as e:
-        logger.error(f"Database error in customer_created for {payload['id']}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in customer_created for {payload['id']}: {e}")
-        raise
+    # Execute service
+    with get_customer_service() as service:
+        service.handle_customer_created(info)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_deleted(self, payload: dict):
-    session = next(get_session())
-    user_repo = UserRepository(session)
-
+    """Handle customer.deleted webhook."""
+    # Validate payload structure
     try:
-        logger.info(f"Customer ID es: {payload['id']}")
-        user_repo.delete(payload["id"])
+        data = CustomerPayload(**payload)
+    except ValidationError as e:
+        logger.warning(f"Invalid customer.deleted payload: {e}")
+        return  # No retry for validation errors
 
-    except DatabaseError as e:
-        logger.error(f"Database error in customer_deleted for {payload['id']}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in customer_deleted for {payload['id']}: {e}")
-        raise
+    # Parse to extract needed info
+    info = parse_customer_deleted(data)
+
+    # Execute service
+    with get_customer_service() as service:
+        service.handle_customer_deleted(info)
