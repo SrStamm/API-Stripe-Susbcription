@@ -1,9 +1,19 @@
 from db.session import get_session
 from repositories.subscription_repositories import SubscriptionRepository
-from core.logger import logger
-from datetime import datetime
+from services.subscription_service import SubscriptionService
+from parsers.invoice import (
+    InvoicePayload,
+    parse_invoice_paid,
+    parse_invoice_payment_failed,
+)
 from tasks.app import celery_app
-from schemas.enums import SubscriptionStatus
+
+
+def _get_subscription_service() -> SubscriptionService:
+    """Create SubscriptionService instance for Celery tasks."""
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+    return SubscriptionService(subs_repo, None, None)
 
 
 @celery_app.task(
@@ -15,73 +25,20 @@ from schemas.enums import SubscriptionStatus
     default_retry_delay=1,
 )
 def invoice_paid(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle invoice.paid webhook."""
+    # Validate payload structure
+    data = InvoicePayload(**payload)
 
-    try:
-        logger.info(f"Webhook payload: {payload}")
+    # Parse to extract needed info
+    info = parse_invoice_paid(data)
 
-        # Ignorar facturas no relacionadas a suscripciones
-        if payload.get("billing_reason") != "subscription_create":
-            logger.info("Skipping invoice.paid: not from subscription")
-            return
+    # Skip if invoice is not related to subscriptions
+    if info is None:
+        return
 
-        # Obtiene la informacion del payload
-        lines = payload.get("lines", {}).get("data", [])
-
-        if not lines:
-            logger.warning("No invoice lines found in webhook payload")
-            raise Exception("Missing invoice lines")
-
-        line = lines[0]
-
-        parent = line.get("parent", {})
-
-        # Valida si se tiene los detalles de las suscripciones
-        if not parent.get("subscription_item_details") or not parent.get(
-            "subscription_item_details"
-        ).get("subscription"):
-            logger.warning("No subscription ID found in subscription_item_details")
-            raise Exception("Missing subscription ID")
-
-        sub_item_details = parent.get("subscription_item_details")
-
-        # Valida si se tiene el id de suscripción
-        if not sub_item_details.get("subscription"):
-            logger.warning("Missing subscription ID in invoice line")
-            raise Exception("Missing subscription ID")
-
-        subscription_id = sub_item_details.get("subscription")
-
-        # Obtiene el ID de customer, el period end y status de suscripción
-        customer_id = payload.get("customer")
-        current_period_end = datetime.fromtimestamp(line["period"]["end"])
-        status = SubscriptionStatus.from_stripe(payload.get("status", "paid"))
-
-        logger.info(
-            f"Webhook invoice.paid - sub_id: {subscription_id}, customer_id: {customer_id}"
-        )
-
-        sub = subs_repo.get_subscription_for_user(
-            sub_id=subscription_id, customer_id=customer_id
-        )
-
-        if not sub:
-            raise Exception("Subscription not found")
-
-        subs_repo.update_for_user(
-            sub_id=subscription_id,
-            customer_id=customer_id,
-            status=status,
-            current_period_end=current_period_end,
-            is_active=True,
-        )
-
-        logger.info(f"Subscription {subscription_id} updated correctly")
-
-    except Exception as e:
-        logger.error(f"Error in Invoice Paid: {e}")
-        raise e
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_invoice_paid(info)
 
 
 @celery_app.task(
@@ -93,62 +50,13 @@ def invoice_paid(self, payload: dict):
     default_retry_delay=1,
 )
 def invoice_payment_failed(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle invoice.payment_failed webhook."""
+    # Validate payload structure
+    data = InvoicePayload(**payload)
 
-    try:
-        logger.info(f"Webhook payload: {payload}")
+    # Parse to extract needed info
+    info = parse_invoice_payment_failed(data)
 
-        # Ignorar facturas no relacionadas a suscripciones
-        # if payload.get("billing_reason") != "subscription_create":
-        #     logger.info("Skipping invoice.paid: not from subscription")
-        #     return
-
-        # Obtiene la informacion del payload
-        lines = payload.get("lines", {}).get("data", [])
-
-        if not lines:
-            logger.warning("No invoice lines found in webhook payload")
-            raise Exception("Missing invoice lines")
-
-        line = lines[0]
-        parent = line.get("parent", {})
-
-        # Valida si se tiene los detalles de las suscripciones
-        if not parent.get("subscription_item_details") or not parent.get(
-            "subscription_item_details"
-        ).get("subscription"):
-            logger.warning("No subscription ID found in subscription_item_details")
-            raise Exception("Missing subscription ID")
-
-        sub_item_details = parent.get("subscription_item_details")
-
-        subscription_id = sub_item_details.get("subscription")
-
-        # Obtiene el ID de customer, el period end y status de suscripción
-        customer_id = payload.get("customer")
-        current_period_end = datetime.fromtimestamp(line["period"]["end"])
-        status = SubscriptionStatus.from_stripe("past_due")
-
-        logger.info(f"Webhook invoice.payment_failed - customer_id: {customer_id}")
-
-        sub = subs_repo.get_subscription_for_user(
-            sub_id=subscription_id, customer_id=customer_id
-        )
-
-        if not sub:
-            raise Exception("Subscription not found")
-
-        subs_repo.update_for_user(
-            sub_id=subscription_id,
-            customer_id=customer_id,
-            status=status,
-            current_period_end=current_period_end,
-            is_active=False,
-        )
-
-        logger.info(f"Subscription {subscription_id} updated correctly")
-
-    except Exception as e:
-        logger.error(f"Error in Invoice Paiment Failed: {e}")
-        raise e
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_invoice_payment_failed(info)

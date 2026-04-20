@@ -1,209 +1,125 @@
-from sqlmodel import true
+from pydantic import BaseModel
+
 from db.session import get_session
 from repositories.plan_repositories import PlanRepository
 from repositories.subscription_repositories import SubscriptionRepository
-from core.logger import logger
-from datetime import datetime
 from repositories.user_repositories import UserRepository
+from services.subscription_service import SubscriptionService
+from parsers.subscription import (
+    SubscriptionPayload,
+    parse_customer_subscription_created,
+    parse_customer_subscription_updated,
+    parse_customer_subscription_deleted,
+    parse_customer_subscription_paused,
+)
 from schemas.enums import SubscriptionTier, SubscriptionStatus
 from tasks.app import celery_app
-from schemas.exceptions import DatabaseError, PlanNotFound
+from datetime import datetime
+
+
+class CustomerSubBasicPayload(BaseModel):
+    id: str
+
+
+def _get_subscription_service() -> SubscriptionService:
+    """Create SubscriptionService instance for Celery tasks."""
+    session = next(get_session())
+    subs_repo = SubscriptionRepository(session)
+    user_repo = UserRepository(session)
+    plan_repo = PlanRepository(session)
+    return SubscriptionService(subs_repo, user_repo, plan_repo)
 
 
 @celery_app.task
 def customer_sub_basic(payload: dict):
-    session = next(get_session())
-    sub_repo = SubscriptionRepository(session)
-    plan_repo = PlanRepository(session)
-    user_repo = UserRepository(session)
+    """Create free trial subscription for user."""
+    # Validate payload structure
+    data = CustomerSubBasicPayload(**payload)
 
-    try:
-        user = user_repo.get_user_by_customer_id(payload["id"])
-        if not user:
-            raise Exception(f"User with stripe_id {payload['id']}")
-
-        plan = plan_repo.get_plan_by_plan_id(id=5)
-        if not plan:
-            raise Exception('Plan with ID 5 ("FREE") not found: ')
-
-        sub_repo.create(
-            user_id=user.id,
-            plan_id=plan.id,
-            subscription_id="sub_free",
-            status=SubscriptionStatus.trialing,
-            current_period_end=datetime.now(),
-            tier=SubscriptionTier.free,
-        )
-
-        sub_repo.update_for_user(
-            sub_id="sub_free",
-            customer_id=payload["id"],
-            status=SubscriptionStatus.trialing,
-            current_period_end=None,
-            is_active=True,
-        )
-
-        logger.info(f"User {user.id} was suscripted to trial free correctly ")
-    except DatabaseError as e:
-        raise e
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_customer_sub_basic(data.id)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_subscription_created(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle customer.subscription.created webhook."""
+    # Validate payload structure
+    data = SubscriptionPayload(**payload)
 
-    try:
-        current_period_end = datetime.fromtimestamp(
-            payload["items"]["data"][0]["current_period_end"]
-        )
+    # Parse to extract needed info
+    info = parse_customer_subscription_created(data)
 
-        subs_repo.update_for_user(
-            sub_id=payload["id"],
-            customer_id=payload["customer"],
-            status=SubscriptionStatus.from_stripe(payload["status"]),
-            current_period_end=current_period_end,
-            is_active=True,
-        )
-        logger.info(f"Customer subscription {payload['id']} updated correctly")
-
-    except DatabaseError as e:
-        logger.error(
-            f"Database error in customer_subscription_created for {payload['id']}: {e}"
-        )
-        raise e
-    except Exception as e:
-        logger.error(f"Error in Customer Subscription Created: {e}")
-        raise e
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_customer_subscription_created(info)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_subscription_updated(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle customer.subscription.updated webhook."""
+    # Validate payload structure
+    data = SubscriptionPayload(**payload)
 
-    try:
-        # Obtiene el periodo de finalización de la suscripcion
-        current_period_end = datetime.fromtimestamp(
-            payload["items"]["data"][0]["current_period_end"]
-        )
+    # Parse to extract needed info
+    info = parse_customer_subscription_updated(data)
 
-        case_falses = ["paused", "incomplete"]
-
-        if payload["status"] in case_falses:
-            active = False
-        else:
-            active = True
-
-        subs_repo.update_for_user(
-            sub_id=payload["id"],
-            customer_id=payload["customer"],
-            status=SubscriptionStatus.from_stripe(payload["status"]),
-            current_period_end=current_period_end,
-            is_active=active,
-        )
-
-        logger.info(f"Customer subscription {payload['id']} updated correctly")
-
-    except DatabaseError as e:
-        logger.error(
-            f"Database error in customer_subscription_updated for {payload['id']}: {e}"
-        )
-        raise
-    except Exception as e:
-        logger.error(f"Error in Customer Subscription Updated: {e}")
-        raise
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_customer_subscription_updated(info)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_subscription_deleted(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle customer.subscription.deleted webhook."""
+    # Validate payload structure
+    data = SubscriptionPayload(**payload)
 
-    try:
-        current_period_end = datetime.fromtimestamp(
-            payload["items"]["data"][0]["current_period_end"]
-        )
+    # Parse to extract needed info
+    info = parse_customer_subscription_deleted(data)
 
-        subs_repo.cancel(
-            sub_id=payload["id"],
-            customer_id=payload["customer"],
-            status=SubscriptionStatus.from_stripe(payload["status"]),
-            current_period_end=current_period_end,
-        )
-        logger.info(f"Customer subscription {payload['id']} updated correctly")
-
-    except DatabaseError as e:
-        logger.error(
-            f"Database error in customer_subscription_deleted for {payload['id']}: {e}"
-        )
-        raise
-    except Exception as e:
-        logger.error(f"Error in Customer Subscription Deleted: {e}")
-        raise
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_customer_subscription_deleted(info)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_subscription_paused(self, payload: dict):
-    session = next(get_session())
-    subs_repo = SubscriptionRepository(session)
+    """Handle customer.subscription.paused webhook."""
+    # Validate payload structure
+    data = SubscriptionPayload(**payload)
 
-    try:
-        subs_repo.update_for_user(
-            sub_id=payload["id"],
-            customer_id=payload["customer"],
-            status=SubscriptionStatus.from_stripe(payload["status"]),
-            current_period_end=None,
-            is_active=False,
-        )
+    # Parse to extract needed info
+    info = parse_customer_subscription_paused(data)
 
-        logger.info(f"Customer subscription {payload['id']} updated correctly")
-
-    except DatabaseError as e:
-        logger.error(
-            f"Database error in customer_subscription_updated for {payload['id']}: {e}"
-        )
-        raise
-    except Exception as e:
-        logger.error(f"Error in Customer Subscription Updated: {e}")
-        raise
+    # Execute service
+    service = _get_subscription_service()
+    service.handle_customer_subscription_paused(info)

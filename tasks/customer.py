@@ -1,63 +1,58 @@
 from db.session import get_session
 from repositories.user_repositories import UserRepository
-from core.logger import logger
-from schemas.exceptions import DatabaseError
+from services.customer_service import CustomerService
+from parsers.customer import (
+    CustomerPayload,
+    parse_customer_created,
+    parse_customer_deleted,
+)
 from tasks.app import celery_app
+
+
+def _get_customer_service() -> CustomerService:
+    """Create CustomerService instance for Celery tasks."""
+    session = next(get_session())
+    user_repo = UserRepository(session)
+    return CustomerService(user_repo)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_created(self, payload: dict):
-    session = next(get_session())
-    user_repo = UserRepository(session)
+    """Handle customer.created webhook."""
+    # Validate payload structure
+    data = CustomerPayload(**payload)
 
-    try:
-        user = user_repo.get_user_by_customer_id(payload["id"])
+    # Parse to extract needed info
+    info = parse_customer_created(data)
 
-        if not user:
-            user = user_repo.create(email=payload["email"])
-
-            user_repo.update(id=user.id, stripe_id=payload["id"])
-
-    except DatabaseError as e:
-        logger.error(f"Database error in customer_created for {payload['id']}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in customer_created for {payload['id']}: {e}")
-        raise
+    # Execute service
+    service = _get_customer_service()
+    service.handle_customer_created(info)
 
 
 @celery_app.task(
     bind=True,
-    autoretry_for=(
-        Exception,
-        DatabaseError,
-    ),
+    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=3,
     default_retry_delay=1,
 )
 def customer_deleted(self, payload: dict):
-    session = next(get_session())
-    user_repo = UserRepository(session)
+    """Handle customer.deleted webhook."""
+    # Validate payload structure
+    data = CustomerPayload(**payload)
 
-    try:
-        logger.info(f"Customer ID es: {payload['id']}")
-        user_repo.delete(payload["id"])
+    # Parse to extract needed info
+    info = parse_customer_deleted(data)
 
-    except DatabaseError as e:
-        logger.error(f"Database error in customer_deleted for {payload['id']}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in customer_deleted for {payload['id']}: {e}")
-        raise
+    # Execute service
+    service = _get_customer_service()
+    service.handle_customer_deleted(info)
