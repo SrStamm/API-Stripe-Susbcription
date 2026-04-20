@@ -1,6 +1,7 @@
 app.log
 env/
 .env
+.venv/
 .coverage
 .pytest_cache/
 __pycache__/
