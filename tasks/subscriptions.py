@@ -5,7 +5,7 @@ from repositories.subscription_repositories import SubscriptionRepository
 from core.logger import logger
 from datetime import datetime
 from repositories.user_repositories import UserRepository
-from schemas.enums import SubscriptionTier
+from schemas.enums import SubscriptionTier, SubscriptionStatus
 from tasks.app import celery_app
 from schemas.exceptions import DatabaseError, PlanNotFound
 
@@ -30,7 +30,7 @@ def customer_sub_basic(payload: dict):
             user_id=user.id,
             plan_id=plan.id,
             subscription_id="sub_free",
-            status="free",
+            status=SubscriptionStatus.trialing,
             current_period_end=datetime.now(),
             tier=SubscriptionTier.free,
         )
@@ -38,7 +38,7 @@ def customer_sub_basic(payload: dict):
         sub_repo.update_for_user(
             sub_id="sub_free",
             customer_id=payload["id"],
-            status="active",
+            status=SubscriptionStatus.trialing,
             current_period_end=None,
             is_active=True,
         )
@@ -71,7 +71,7 @@ def customer_subscription_created(self, payload: dict):
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
-            status=payload["status"],
+            status=SubscriptionStatus.from_stripe(payload["status"]),
             current_period_end=current_period_end,
             is_active=True,
         )
@@ -118,7 +118,7 @@ def customer_subscription_updated(self, payload: dict):
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
-            status=payload["status"],
+            status=SubscriptionStatus.from_stripe(payload["status"]),
             current_period_end=current_period_end,
             is_active=active,
         )
@@ -158,7 +158,7 @@ def customer_subscription_deleted(self, payload: dict):
         subs_repo.cancel(
             sub_id=payload["id"],
             customer_id=payload["customer"],
-            status=payload["status"],
+            status=SubscriptionStatus.from_stripe(payload["status"]),
             current_period_end=current_period_end,
         )
         logger.info(f"Customer subscription {payload['id']} updated correctly")
@@ -192,7 +192,7 @@ def customer_subscription_paused(self, payload: dict):
         subs_repo.update_for_user(
             sub_id=payload["id"],
             customer_id=payload["customer"],
-            status=payload["status"],
+            status=SubscriptionStatus.from_stripe(payload["status"]),
             current_period_end=None,
             is_active=False,
         )

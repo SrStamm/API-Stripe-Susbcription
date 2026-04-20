@@ -1,6 +1,7 @@
 from models.plan import Plans
 from models.user import Users
 from schemas.exceptions import DatabaseError
+from schemas.enums import SubscriptionTier, SubscriptionStatus
 from tasks.subscriptions import (
     customer_sub_basic,
     customer_subscription_created,
@@ -53,7 +54,7 @@ def test_customer_sub_basic_success(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id="sub_free",
         customer_id="cus_mock_test",
-        status="active",
+        status=SubscriptionStatus.trialing,
         current_period_end=None,
         is_active=True,
     )
@@ -181,7 +182,7 @@ def test_customer_subscription_created_success(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=True,
     )
@@ -225,7 +226,7 @@ def test_customer_subscription_created_db_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=True,
     )
@@ -267,7 +268,7 @@ def test_customer_subscription_created_unexpected_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=True,
     )
@@ -305,7 +306,7 @@ def test_customer_subscription_updated_success(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=False,
     )
@@ -347,7 +348,7 @@ def test_customer_subscription_updated_unexpected_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=False,
     )
@@ -391,7 +392,7 @@ def test_customer_subscription_updated_db_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
         is_active=False,
     )
@@ -429,7 +430,7 @@ def test_customer_subscription_deleted_success(mocker):
     mock_sub_repo.cancel.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
     )
 
@@ -472,7 +473,7 @@ def test_customer_subscription_deleted_db_error(mocker):
     mock_sub_repo.cancel.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
     )
 
@@ -513,7 +514,7 @@ def test_customer_subscription_deleted_unexpected_error(mocker):
     mock_sub_repo.cancel.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=current_period_end_mocked,
     )
 
@@ -546,7 +547,7 @@ def test_customer_subscription_paused_success(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=None,
         is_active=False,
     )
@@ -586,7 +587,7 @@ def test_customer_subscription_paused_db_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=None,
         is_active=False,
     )
@@ -624,7 +625,7 @@ def test_customer_subscription_paused_unexpected_error(mocker):
     mock_sub_repo.update_for_user.assert_called_once_with(
         sub_id=payload_mocked["id"],
         customer_id=payload_mocked["customer"],
-        status=payload_mocked["status"],
+        status=SubscriptionStatus.from_stripe(payload_mocked["status"]),
         current_period_end=None,
         is_active=False,
     )

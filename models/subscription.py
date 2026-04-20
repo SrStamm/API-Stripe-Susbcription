@@ -1,7 +1,7 @@
 from datetime import datetime as dt, timezone
 from typing import Optional
 from sqlmodel import SQLModel, Field, Relationship
-from schemas.enums import SubscriptionTier
+from schemas.enums import SubscriptionTier, SubscriptionStatus
 from .user import Users
 from .plan import Plans
 
@@ -12,7 +12,7 @@ class Subscriptions(SQLModel, table=True):
     plan_id: int = Field(foreign_key="plans.id")
     stripe_subscription_id: str
     tier: SubscriptionTier = Field(default=SubscriptionTier.free)
-    status: str
+    status: SubscriptionStatus
     current_period_end: dt
 
     created_at: dt = Field(default_factory=lambda: dt.now(timezone.utc))
