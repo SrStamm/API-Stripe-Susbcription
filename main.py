@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from db.session import create_db_and_tables
 from contextlib import asynccontextmanager
-from api import users, subscriptions, plans, auth, webhooks, products
+from api import users, subscriptions, plans, auth, webhooks, products, health
 from core.logger import register_exceptions_handlers
 
 
@@ -21,6 +21,7 @@ app.include_router(auth.router)
 app.include_router(plans.router)
 app.include_router(webhooks.router)
 app.include_router(products.router)
+app.include_router(health.router)
 
 
 @app.get("/")
