@@ -7,7 +7,16 @@ from sqlalchemy import select
 
 from core.stripe_test import cancelSubscription, createSubscription
 from core.logger import logger
+from core.correlation import get_correlation_id
 from db.session import Session, get_session, SQLAlchemyError, select
+
+
+def _get_logger_with_correlation():
+    """Get logger with correlation_id bound."""
+    corr_id = get_correlation_id()
+    if corr_id:
+        return logger.bind(correlation_id=corr_id)
+    return logger
 from models.user import Users
 from models.plan import Plans
 from models.subscription import Subscriptions
@@ -151,6 +160,10 @@ class SubscriptionService:
         }
 
     # Celery task handlers
+    def _get_logger(self):
+        """Get logger with correlation ID if available."""
+        return _get_logger_with_correlation()
+
     def _get_existing_subscription(self, sub_id: str, customer_id: str):
         """Get existing subscription or raise exception.
 
